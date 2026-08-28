@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>声卷 · 有声书智能生成工作台</title>
+<style>
+  :root {
+    --paper: #faf9f7;
+    --paper-sunken: #f4f2ef;
+    --ink: #1c1917;
+    --ink-soft: #57534e;
+    --ink-faint: #a8a29e;
+    --line: #e7e5e4;
+    --line-strong: #d6d3d1;
+    --accent: #b45309;
+    --accent-deep: #92400e;
+    --accent-wash: #fef3e7;
+    --serif: "Noto Serif SC", "Source Han Serif SC", "STSong", "SimSun", serif;
+    --sans: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    --mono: "SF Mono", "Cascadia Code", Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 16px; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── 顶栏 ─────────────────────────── */
+  header {
+    display: flex; align-items: baseline; gap: 16px;
+    padding: 20px 48px;
+    border-bottom: 1px solid var(--line);
+    background: var(--paper);
+  }
+  .brand { font-family: var(--serif); font-size: 1.35rem; font-weight: 700; letter-spacing: 0.06em; }
+  .brand em { font-style: normal; color: var(--accent); }
+  .brand-sub { font-size: 0.8rem; color: var(--ink-faint); letter-spacing: 0.12em; }
+  .conn { margin-left: auto; font-size: 0.78rem; color: var(--ink-faint); display: flex; align-items: center; gap: 6px; }
+  .conn .dot { width: 7px; height: 7px; border-radius: 50%; background: #16a34a; }
+
+  /* ── 主体：非对称分栏 ─────────────── */
+  .stage {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    min-height: calc(100vh - 65px);
+  }
+  aside {
+    border-right: 1px solid var(--line);
+    padding: 32px 28px 48px;
+    background: var(--paper);
+  }
+  main { padding: 40px 56px 80px; max-width: 980px; }
+
+  /* ── 左栏控制面板 ─────────────────── */
+  .field { margin-bottom: 28px; }
+  .field-label {
+    font-size: 0.75rem; font-weight: 600; letter-spacing: 0.14em;
+    color: var(--ink-soft); text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .voice-option {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px;
+    cursor: pointer; margin-bottom: 8px; transition: border-color .18s ease, background .18s ease;
+    background: transparent;
+  }
+  .voice-option:hover { border-color: var(--line-strong); background: var(--paper-sunken); }
+  .voice-option.active { border-color: var(--accent); background: var(--accent-wash); }
+  .voice-name { font-size: 0.9rem; }
+  .voice-tag { font-size: 0.72rem; color: var(--ink-faint); }
+  .voice-option.active .voice-tag { color: var(--accent-deep); }
+  .voice-play {
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; margin-left: 10px;
+    border: 1px solid var(--line-strong); background: #fff; color: var(--ink-soft);
+    font-size: 0.6rem; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: all .16s ease;
+  }
+  .voice-play:hover { border-color: var(--accent); color: var(--accent-deep); }
+  .voice-play.loading { color: var(--ink-faint); cursor: wait; animation: pulse 1.2s ease infinite; }
+  .voice-play.playing { border-color: var(--accent); color: var(--accent-deep); background: var(--accent-wash); }
+  .field-note { font-size: 0.75rem; color: var(--ink-faint); margin-top: 6px; line-height: 1.5; }
+  .custom-input {
+    width: 100%; margin-top: 8px; padding: 9px 12px;
+    border: 1px solid var(--line); border-radius: 6px;
+    background: #fff; color: var(--ink);
+    font-family: var(--mono); font-size: 0.78rem;
+  }
+  .custom-input:focus { outline: none; border-color: var(--accent); }
+
+  /* ── 弹窗 ─────────────────────────── */
+  .overlay {
+    position: fixed; inset: 0; z-index: 40;
+    background: rgba(28, 25, 23, 0.45);
+    display: none; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .overlay.on { display: flex; animation: fadeIn .18s ease both; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal {
+    width: 480px; max-width: 100%;
+    max-height: calc(100vh - 64px); overflow-y: auto;
+    background: var(--paper); border-radius: 10px;
+    padding: 28px 30px 26px;
+    box-shadow: 0 24px 60px rgba(28, 25, 23, 0.22);
+    animation: rise .22s ease both;
+  }
+  .modal-title { font-family: var(--serif); font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; }
+  .modal-sub { font-size: 0.8rem; color: var(--ink-faint); margin-bottom: 22px; line-height: 1.6; }
+
+  .path-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .path-card {
+    padding: 20px 16px; border: 1px solid var(--line); border-radius: 8px;
+    cursor: pointer; text-align: center; background: #fff;
+    transition: border-color .18s ease, transform .14s ease;
+  }
+  .path-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .path-name { font-family: var(--serif); font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+  .path-desc { font-size: 0.75rem; color: var(--ink-faint); line-height: 1.55; }
+
+  .slider-row { margin-bottom: 18px; }
+  .slider-cap { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--ink-soft); margin-bottom: 6px; }
+  .slider-cap b { font-weight: 600; color: var(--ink); }
+  input[type="range"] { width: 100%; accent-color: var(--accent); height: 22px; }
+
+  .prompt-preview {
+    font-size: 0.78rem; color: var(--ink-soft);
+    background: var(--paper-sunken); border-radius: 6px;
+    padding: 10px 12px; line-height: 1.7; margin: 14px 0 18px;
+  }
+
+  .rec-text-block {
+    font-family: var(--serif); font-size: 1rem; line-height: 2;
+    background: var(--paper-sunken); border-radius: 6px;
+    padding: 14px 18px; text-align: center; letter-spacing: 0.05em;
+    margin-bottom: 16px;
+  }
+  .rec-controls { display: flex; align-items: center; gap: 16px; justify-content: center; margin-bottom: 12px; }
+  .rec-btn {
+    padding: 10px 22px; border-radius: 999px; border: 1px solid var(--line-strong);
+    background: #fff; color: var(--ink); font-size: 0.85rem; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: all .18s ease;
+  }
+  .rec-btn:hover { border-color: var(--accent); color: var(--accent-deep); }
+  .rec-btn.recording { border-color: #dc2626; color: #dc2626; }
+  .rec-btn.recording .dot-in { background: #dc2626; animation: blinkRed 1s ease infinite; }
+  @keyframes blinkRed { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+  .dot-in { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+  .rec-status { text-align: center; font-size: 0.8rem; color: var(--ink-faint); min-height: 20px; font-family: var(--mono); }
+
+  .m-state { text-align: center; padding: 18px 0 4px; font-size: 0.85rem; color: var(--ink-soft); }
+  .m-error {
+    background: #fef2f2; border-left: 3px solid #dc2626; color: #7f1d1d;
+    font-size: 0.8rem; padding: 10px 14px; border-radius: 0 6px 6px 0;
+    margin-top: 12px; line-height: 1.6;
+  }
+  .m-success {
+    background: #f0fdf4; border-left: 3px solid #16a34a; color: #14532d;
+    font-size: 0.82rem; padding: 10px 14px; border-radius: 0 6px 6px 0;
+    margin-top: 12px; line-height: 1.6;
+  }
+  .m-actions { display: flex; gap: 10px; margin-top: 22px; }
+  .m-btn {
+    flex: 1; padding: 11px 0; border-radius: 6px; font-size: 0.88rem;
+    cursor: pointer; transition: all .18s ease; font-weight: 600;
+  }
+  .m-btn.primary { background: var(--ink); color: var(--paper); border: none; }
+  .m-btn.primary:hover:not(:disabled) { background: var(--accent-deep); }
+  .m-btn.primary:disabled { background: var(--line-strong); cursor: not-allowed; }
+  .m-btn.ghost { background: transparent; color: var(--ink-soft); border: 1px solid var(--line-strong); }
+  .m-btn.ghost:hover { border-color: var(--ink-soft); }
+  .name-input {
+    width: 100%; margin-top: 10px; padding: 10px 12px;
+    border: 1px solid var(--line); border-radius: 6px;
+    background: #fff; font-size: 0.85rem;
+  }
+  .name-input:focus { outline: none; border-color: var(--accent); }
+
+  .switch-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; }
+  .switch-row span { font-size: 0.9rem; }
+  .switch { position: relative; width: 36px; height: 20px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; inset: 0; background: var(--line-strong); border-radius: 10px;
+    cursor: pointer; transition: background .2s ease;
+  }
+  .slider::before {
+    content: ""; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px;
+    background: #fff; border-radius: 50%; transition: transform .2s ease;
+  }
+  .switch input:checked + .slider { background: var(--accent); }
+  .switch input:checked + .slider::before { transform: translateX(16px); }
+
+  .generate-btn {
+    width: 100%; padding: 13px 0; margin-top: 8px;
+    background: var(--ink); color: var(--paper);
+    border: none; border-radius: 6px;
+    font-size: 0.95rem; font-weight: 600; letter-spacing: 0.2em;
+    cursor: pointer; transition: background .18s ease, transform .12s ease;
+  }
+  .generate-btn:hover:not(:disabled) { background: var(--accent-deep); }
+  .generate-btn:active:not(:disabled) { transform: scale(0.985); }
+  .generate-btn:disabled { background: var(--line-strong); color: var(--paper); cursor: not-allowed; }
+
+  /* ── 右侧工作区 ───────────────────── */
+  .work-head { margin-bottom: 24px; }
+  .work-title { font-family: var(--serif); font-size: 1.7rem; font-weight: 700; line-height: 1.2; }
+  .work-desc { color: var(--ink-soft); font-size: 0.92rem; margin-top: 6px; max-width: 560px; }
+
+  textarea {
+    width: 100%; min-height: 220px; resize: vertical;
+    padding: 20px 22px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: #fff; color: var(--ink);
+    font-family: var(--sans); font-size: 0.95rem; line-height: 1.8;
+    transition: border-color .18s ease;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+  .text-meta { display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.75rem; color: var(--ink-faint); }
+  .text-meta button {
+    background: none; border: none; color: var(--accent-deep); cursor: pointer;
+    font-size: 0.75rem; padding: 0; text-decoration: underline; text-underline-offset: 3px;
+  }
+
+  /* 进度 */
+  .progress-block { margin-top: 40px; display: none; }
+  .progress-block.on { display: block; }
+  .stage-line { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .stage-now { font-family: var(--serif); font-size: 1.1rem; }
+  .stage-detail { font-size: 0.82rem; color: var(--ink-faint); font-family: var(--mono); }
+  .bar { height: 2px; background: var(--line); border-radius: 1px; overflow: hidden; }
+  .bar i {
+    display: block; height: 100%; width: 0%;
+    background: var(--accent); transition: width .6s ease;
+  }
+  .bar.pulse i { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+  .progress-log { margin-top: 14px; font-size: 0.78rem; color: var(--ink-faint); font-family: var(--mono); max-height: 120px; overflow: hidden; }
+
+  /* 结果区 */
+  .result { display: none; margin-top: 48px; }
+  .result.on { display: block; animation: rise .5s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+  .sec-head {
+    display: flex; align-items: baseline; gap: 14px;
+    padding-bottom: 12px; margin-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sec-title { font-family: var(--serif); font-size: 1.15rem; font-weight: 700; }
+  .sec-sub { font-size: 0.78rem; color: var(--ink-faint); }
+
+  /* 播放器 */
+  .player { display: flex; align-items: center; gap: 18px; margin-bottom: 40px; }
+  .play-btn {
+    width: 52px; height: 52px; border-radius: 50%;
+    border: 1px solid var(--ink); background: var(--ink); color: var(--paper);
+    font-size: 1.05rem; cursor: pointer; flex-shrink: 0;
+    transition: background .18s ease, transform .12s ease;
+    display: grid; place-items: center;
+  }
+  .play-btn:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+  .play-btn:active { transform: scale(0.95); }
+  .track { flex: 1; }
+  .track-bar { position: relative; height: 28px; cursor: pointer; }
+  .track-rail { position: absolute; top: 13px; left: 0; right: 0; height: 2px; background: var(--line-strong); }
+  .track-fill { position: absolute; top: 13px; left: 0; height: 2px; background: var(--accent); width: 0%; }
+  .track-knob {
+    position: absolute; top: 9px; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent); transform: translateX(-50%); left: 0%;
+  }
+  .track-time { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--ink-faint); font-family: var(--mono); margin-top: 2px; }
+  .dl-btn {
+    padding: 9px 18px; border: 1px solid var(--line-strong); border-radius: 6px;
+    background: transparent; color: var(--ink-soft);
+    font-size: 0.82rem; cursor: pointer; flex-shrink: 0;
+    transition: border-color .18s ease, color .18s ease;
+  }
+  .dl-btn:hover { border-color: var(--accent); color: var(--accent-deep); }
+
+  /* 情绪曲线 */
+  .curve-wrap { position: relative; }
+  #curve { width: 100%; height: auto; display: block; }
+  .tooltip {
+    position: absolute; pointer-events: none;
+    background: var(--ink); color: var(--paper);
+    font-size: 0.75rem; line-height: 1.5;
+    padding: 8px 12px; border-radius: 6px;
+    max-width: 260px; opacity: 0; transition: opacity .15s ease;
+    z-index: 5; transform: translate(-50%, calc(-100% - 12px));
+  }
+  .tooltip .tt-emo { color: #fbbf24; font-size: 0.68rem; letter-spacing: 0.08em; }
+  .curve-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; }
+  .lg { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; color: var(--ink-soft); }
+  .lg i { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* 分段列表 */
+  .seg-list { margin-top: 36px; }
+  .seg-item {
+    display: grid; grid-template-columns: 44px 1fr 130px;
+    gap: 16px; padding: 13px 4px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.88rem; line-height: 1.7;
+  }
+  .seg-idx { color: var(--ink-faint); font-family: var(--mono); font-size: 0.75rem; padding-top: 3px; }
+  .seg-text { color: var(--ink-soft); }
+  .seg-text b { color: var(--ink); font-weight: 400; }
+  .seg-meta { text-align: right; font-size: 0.72rem; color: var(--ink-faint); padding-top: 3px; }
+  .seg-meta .em { display: inline-block; padding: 1px 8px; border-radius: 3px; font-size: 0.7rem; margin-right: 6px; }
+
+  .error-box {
+    display: none; margin-top: 32px; padding: 16px 20px;
+    border-left: 3px solid #dc2626; background: #fef2f2;
+    font-size: 0.85rem; color: #7f1d1d; border-radius: 0 6px 6px 0;
+  }
+  .error-box.on { display: block; }
+
+  .notice-box {
+    display: none; margin-top: 32px; padding: 14px 20px;
+    border-left: 3px solid var(--accent); background: var(--accent-wash);
+    font-size: 0.85rem; color: var(--accent-deep); border-radius: 0 6px 6px 0;
+    line-height: 1.7;
+  }
+  .notice-box.on { display: block; }
+
+  footer { padding: 28px 48px; border-top: 1px solid var(--line); font-size: 0.75rem; color: var(--ink-faint); display: flex; justify-content: space-between; }
+
+  /* 响应式 */
+  @media (max-width: 900px) {
+    .stage { grid-template-columns: 1fr; }
+    aside { border-right: none; border-bottom: 1px solid var(--line); padding: 24px 24px 32px; }
+    main { padding: 28px 24px 64px; }
+    header { padding: 16px 24px; }
+    footer { padding: 20px 24px; flex-direction: column; gap: 6px; }
+    .seg-item { grid-template-columns: 34px 1fr; }
+    .seg-meta { grid-column: 2; text-align: left; margin-top: 4px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">声<em>卷</em></div>
+  <div class="brand-sub">AUDIOBOOK STUDIO</div>
+  <div class="conn"><span class="dot" id="connDot"></span><span id="connText">云端服务连接中</span></div>
+</header>
+
+<div class="stage">
+  <aside>
+    <div class="field">
+      <div class="field-label">旁白音色</div>
+      <div id="voiceList"></div>
+      <div class="field-note">旁白使用所选音色；其他角色由 AI 按性别自动分配声线（女角女声、男角男声），同一角色全篇锁定同一音色。</div>
+    </div>
+
+    <div class="field">
+      <div class="field-label">配乐</div>
+      <div class="switch-row">
+        <span>情绪自动匹配 BGM</span>
+        <label class="switch">
+          <input type="checkbox" id="bgmToggle" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="field-note">按全篇情绪加权投票从曲库中选曲，语音段自动压低音乐音量。</div>
+    </div>
+
+    <button class="generate-btn" id="goBtn" disabled>生成有声书</button>
+  </aside>
+
+  <main>
+    <div class="work-head">
+      <h1 class="work-title">把一段文字，交给声音。</h1>
+      <p class="work-desc">粘贴小说、散文或故事文本，系统将自动标注每段情绪、分配角色音色并匹配配乐，生成可直接收听的有声成品。</p>
+    </div>
+
+    <textarea id="textInput" spellcheck="false"></textarea>
+    <div class="text-meta">
+      <span id="charCount">0 字</span>
+      <button id="fillDemo">填入示例文本</button>
+    </div>
+
+    <div class="progress-block" id="progressBlock">
+      <div class="stage-line">
+        <span class="stage-now" id="stageNow">排队中</span>
+        <span class="stage-detail" id="stageDetail"></span>
+      </div>
+      <div class="bar pulse" id="bar"><i style="width:8%"></i></div>
+      <div class="progress-log" id="progressLog"></div>
+    </div>
+
+    <div class="error-box" id="errorBox"></div>
+    <div class="notice-box" id="noticeBox"></div>
+
+    <div class="result" id="result">
+      <div class="sec-head">
+        <span class="sec-title">成品</span>
+        <span class="sec-sub" id="resultMeta"></span>
+      </div>
+
+      <div class="player">
+        <button class="play-btn" id="playBtn">▶</button>
+        <div class="track">
+          <div class="track-bar" id="trackBar">
+            <div class="track-rail"></div>
+            <div class="track-fill" id="trackFill"></div>
+            <div class="track-knob" id="trackKnob"></div>
+          </div>
+          <div class="track-time"><span id="tCur">0:00</span><span id="tDur">0:00</span></div>
+        </div>
+        <button class="dl-btn" id="dlBtn">下载 MP3</button>
+      </div>
+
+      <div class="sec-head">
+        <span class="sec-title">情绪曲线</span>
+        <span class="sec-sub">横轴段落 · 纵轴强度 · 悬停看原文 · 点击圆点可调整该段情绪</span>
+      </div>
+      <div class="curve-wrap">
+        <svg id="curve" viewBox="0 0 860 230"></svg>
+        <div class="tooltip" id="tooltip"></div>
+      </div>
+      <div class="curve-legend" id="legend"></div>
+
+      <div class="seg-list" id="segList"></div>
+    </div>
+  </main>
+</div>
+
+<footer>
+  <span>声卷 · 个性化有声读物智能生成 · 情绪曲线驱动 · 全云 API 架构</span>
+  <span>GLM-4-Flash 情感分析 / 豆包语音合成 2.0 / CloudBase 云托管</span>
+</footer>
+
+<!-- 音色创建弹窗 -->
+<div class="overlay" id="voiceModal">
+  <div class="modal">
+    <div id="mContent"></div>
+  </div>
+</div>
+
+<script>
+/* ───────── 数据 ───────── */
+const API = "https://audiobook-api-303602-8-1421728968.sh.run.tcloudbase.com";
+
+const BASE_VOICES = [
+  { id: "zh_female_yingtaowanzi_uranus_bigtts", name: "樱桃丸子", tag: "豆包同款 · 女" },
+  { id: "zh_male_silang_uranus_bigtts", name: "四郎", tag: "豆包同款 · 男" },
+  { id: "zh_male_qingcang_uranus_bigtts", name: "擎苍", tag: "番茄小说同款 · 男" },
+];
+const MY_CLONE_ID = "S_7PtM1phd2";
+const CLONE_TEXT = "床前明月光，疑是地上霜。举头望明月，低头思故乡。";
+
+/* 自定义音色持久化（创造/复制的产物） */
+function loadCustomVoices() {
+  try { return JSON.parse(localStorage.getItem("sqVoices") || "[]"); }
+  catch { return []; }
+}
+function saveCustomVoice(v) {
+  const list = loadCustomVoices().filter(x => x.id !== v.id);
+  list.unshift(v);
+  localStorage.setItem("sqVoices", JSON.stringify(list.slice(0, 20)));
+}
+let VOICES = [
+  { id: MY_CLONE_ID, name: "我的声音", tag: "声音复刻 · 可重新录制" },
+  ...loadCustomVoices(),
+  ...BASE_VOICES,
+  { id: "__custom__", name: "自定义音色", tag: "创造 / 复制 →" },
+];
+
+const EMO = {
+  neutral:    { label: "平静", color: "#a8a29e" },
+  calm:       { label: "舒缓", color: "#94a3b8" },
+  happy:      { label: "喜悦", color: "#d97706" },
+  excited:    { label: "激昂", color: "#b45309" },
+  sad:        { label: "悲伤", color: "#64748b" },
+  angry:      { label: "愤怒", color: "#b91c1c" },
+  fearful:    { label: "恐惧", color: "#7c6ba0" },
+  surprised:  { label: "惊讶", color: "#0e7490" },
+  tense:      { label: "紧张", color: "#92400e" },
+};
+
+const DEMO_TEXT = `深夜的实验室里，只剩显示器的微光。林晚盯着屏幕上突然跳动的数据，心跳漏了一拍。
+
+"这不可能……"她喃喃道，手指微微发抖。
+
+警报骤然响起，红灯把整个房间染成血色。服务器风扇的轰鸣变成了尖锐的嘶吼。
+
+"林晚！快离开那里！"耳机里传来陈默的怒吼。
+
+她抓起硬盘冲向门口，身后的机柜接连爆炸。火光中，她回头望了一眼那块燃烧的屏幕——人类的第一份人工智能意识，正在火焰里诞生。`;
+
+/* ───────── 状态 ───────── */
+let narrator = VOICES[0].id;
+let prevNarratorId = null;
+let audioEl = null;
+let audioBlobUrl = null;
+let lastTaskId = null;
+let lastResult = null;
+
+/* ═════════ 段落情绪调整（增量重合成） ═════════ */
+function openAdjustModal(index, segs) {
+  if (!lastTaskId) return;
+  const s = segs[index];
+  const e = EMO[s.emotion] || { label: s.emotion, color: "#a8a29e" };
+  openModal(`
+    <div class="modal-title">调整第 ${index + 1} 段</div>
+    <div class="modal-sub">${escapeHtml(s.text.slice(0, 60))}${s.text.length > 60 ? "…" : ""}</div>
+    <div style="font-size:0.78rem;color:var(--ink-faint);margin-bottom:10px;">
+      角色 ${s.role} · ${e.label} —— 拖动滑块改变这一段的朗读情绪强度：
+    </div>
+    <div class="slider-row">
+      <div class="slider-cap"><span>弱</span><b id="adjCap">强</b><span>强</span></div>
+      <input type="range" min="5" max="100" value="${Math.round(s.intensity * 100)}" id="adjSlider">
+      <div style="text-align:center;font-family:var(--mono);font-size:1rem;color:var(--accent-deep);" id="adjVal">
+        ${Math.round(s.intensity * 100)}%
+      </div>
+    </div>
+    <div class="rec-status" id="adjStatus"></div>
+    <div class="m-actions">
+      <button class="m-btn ghost" onclick="closeModal()">取消</button>
+      <button class="m-btn primary" id="adjGo">试听新效果（约 4~6 秒）</button>
+    </div>`);
+
+  $("adjSlider").oninput = ev => {
+    $("adjVal").textContent = ev.target.value + "%";
+  };
+  $("adjGo").onclick = async () => {
+    const intensity = +$("adjSlider").value / 100;
+    const go = $("adjGo"), st = $("adjStatus");
+    go.disabled = true;
+    go.textContent = "重合成中…";
+    st.textContent = "正在重新合成该段并混音整篇…";
+    try {
+      const res = await fetch(`${API}/tasks/${lastTaskId}/adjust`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ index, intensity })
+      });
+      const obj = await res.json();
+      if (!res.ok) throw new Error(obj.error || "HTTP " + res.status);
+      if (obj.error) throw new Error(obj.error);
+      // 更新本地数据与界面
+      lastResult.segments = obj.segments;
+      lastResult.duration_s = obj.duration_s;
+      audioBlobUrl = URL.createObjectURL(new Blob(
+        [Uint8Array.from(atob(obj.audio_base64), c => c.charCodeAt(0))],
+        { type: "audio/mpeg" }));
+      closeModal();
+      render(lastResult);
+    } catch (err) {
+      go.disabled = false;
+      go.textContent = "试听新效果（约 4~6 秒）";
+      st.innerHTML = `<div class="m-error">调整失败：${escapeHtml(err.message)}<br>若任务停留过久可能已过期，请重新生成后再试。</div>`;
+    }
+  };
+}
+
+const $ = id => document.getElementById(id);
+
+/* ───────── 初始化 ───────── */
+function renderVoices() {
+  $("voiceList").innerHTML = VOICES.map(v => `
+    <div class="voice-option${v.id === narrator ? " active" : ""}" data-id="${v.id}">
+      <span class="voice-name">${v.name}</span>
+      <span style="display:flex;align-items:center;gap:8px;">
+        <span class="voice-tag">${v.tag}</span>
+        ${v.id !== "__custom__" ? `<button class="voice-play" data-pv="${v.id}" title="试听">▶</button>` : ""}
+      </span>
+    </div>`).join("");
+  document.querySelectorAll(".voice-option").forEach(el => {
+    el.onclick = () => {
+      narrator = el.dataset.id;
+      if (narrator === "__custom__") { openVoiceMenu(); return; }   // 弹出创造/复制菜单
+      renderVoices();                                               // 刷新选中高亮
+    };
+  });
+  document.querySelectorAll(".voice-play").forEach(btn => {
+    btn.onclick = ev => { ev.stopPropagation(); previewVoice(btn.dataset.pv, btn); };
+  });
+}
+
+function currentNarrator() {
+  return narrator;   // __custom__ 只作为菜单入口，不会成为有效旁白
+}
+
+/* ───────── 音色试听 ───────── */
+const previewCache = {};
+let previewAudio = null, previewBtnNow = null;
+
+function resetPreviewBtn() {
+  if (previewBtnNow) { previewBtnNow.classList.remove("playing"); previewBtnNow.textContent = "▶"; }
+}
+async function previewVoice(id, btn) {
+  /* 播放中再次点击同一按钮 = 停止 */
+  if (previewBtnNow === btn && previewAudio && !previewAudio.paused) {
+    previewAudio.pause();
+    resetPreviewBtn();
+    return;
+  }
+  resetPreviewBtn();
+  if (previewAudio) previewAudio.pause();
+
+  previewBtnNow = btn;
+  btn.classList.add("loading");
+  btn.textContent = "··";
+
+  try {
+    if (!previewCache[id]) {
+      const res = await fetch(API + "/voices/preview", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ speaker_id: id })
+      });
+      const obj = await res.json();
+      if (!res.ok) throw new Error(obj.error || "HTTP " + res.status);
+      previewCache[id] = URL.createObjectURL(new Blob(
+        [Uint8Array.from(atob(obj.audio_base64), c => c.charCodeAt(0))],
+        { type: "audio/mpeg" }));
+    }
+    previewAudio = new Audio(previewCache[id]);
+    previewAudio.onended = resetPreviewBtn;
+    previewAudio.play();
+    btn.classList.remove("loading");
+    btn.classList.add("playing");
+    btn.textContent = "■";
+  } catch (e) {
+    btn.classList.remove("loading");
+    btn.textContent = "▶";
+    if (previewBtnNow === btn) previewBtnNow = null;
+    btn.title = "试听失败：" + (e.message || "网络错误") + "，点击重试";
+  }
+}
+renderVoices();
+$("textInput").value = "";
+updateCount();
+$("fillDemo").onclick = () => { $("textInput").value = DEMO_TEXT; updateCount(); };
+$("textInput").addEventListener("input", updateCount);
+
+function updateCount() {
+  const n = $("textInput").value.replace(/\s/g, "").length;
+  $("charCount").textContent = n + " 字";
+  $("goBtn").disabled = n < 10;
+}
+
+/* 探活 */
+fetch(API + "/health").then(r => r.json()).then(() => {
+  $("connText").textContent = "云端服务已连接";
+}).catch(() => {
+  $("connText").textContent = "云端服务未连接";
+  $("connDot").style.background = "#dc2626";
+  $("goBtn").disabled = true;
+});
+
+/* ───────── 生成 ───────── */
+const STAGE_CN = { queued: "排队中", analyzing: "情感分析中", synthesizing: "语音合成中", mixing: "混音合成中" };
+
+$("goBtn").onclick = async () => {
+  const text = $("textInput").value.trim();
+  const narratorId = currentNarrator();
+  if (narratorId === "__custom__" || !narratorId) { showError("请先在左侧「自定义音色」中选择创造或复制一个音色"); return; }
+  $("goBtn").disabled = true;
+  $("result").classList.remove("on");
+  $("errorBox").classList.remove("on");
+  $("noticeBox").classList.remove("on");
+  $("progressBlock").classList.add("on");
+  setStage("queued", "提交任务…");
+
+  try {
+    const res = await fetch(API + "/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, narrator: narratorId, bgm: $("bgmToggle").checked })
+    });
+    if (!res.ok) throw new Error("提交失败 HTTP " + res.status);
+    const { task_id } = await res.json();
+    poll(task_id);
+  } catch (e) {
+    showError(e.message);
+  }
+};
+
+function setStage(stage, detail) {
+  $("stageNow").textContent = STAGE_CN[stage] || stage;
+  $("stageDetail").textContent = detail || "";
+}
+
+async function poll(id) {
+  for (;;) {
+    let t;
+    try {
+      const res = await fetch(`${API}/tasks/${id}`);
+      t = await res.json();
+    } catch (e) { await sleep(2500); continue; }
+
+    if (t.status === "failed") { showError(t.error || "生成失败"); return; }
+    if (t.status === "running") {
+      setStage(t.stage, t.progress && t.progress.includes("/")
+        ? `段落 ${t.progress}` : "");
+      const pct = t.stage === "analyzing" ? 18 : t.stage === "synthesizing" ? 18 + parsePct(t.progress) * 0.72 : 94;
+      $("bar").firstElementChild.style.width = Math.max(8, pct) + "%";
+      await sleep(2000);
+      continue;
+    }
+    if (t.status === "done") {
+      $("bar").classList.remove("pulse");
+      $("bar").firstElementChild.style.width = "100%";
+      lastResult = t;
+      lastTaskId = id;
+      await fetchAudio(id);
+      render(t);
+      $("goBtn").disabled = false;
+      return;
+    }
+    await sleep(2000);
+  }
+}
+
+function parsePct(p) {
+  if (!p || !p.includes("/")) return 0;
+  const [a, b] = p.split("/").map(Number);
+  return b ? a / b : 0;
+}
+
+async function fetchAudio(id) {
+  const res = await fetch(`${API}/tasks/${id}?audio=1`);
+  const t = await res.json();
+  const bytes = Uint8Array.from(atob(t.audio_base64), c => c.charCodeAt(0));
+  if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
+  audioBlobUrl = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
+}
+
+function showError(msg) {
+  $("progressBlock").classList.remove("on");
+  $("errorBox").textContent = "出错了：" + msg;
+  $("errorBox").classList.add("on");
+  $("goBtn").disabled = false;
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ───────── 渲染结果 ───────── */
+function render(t) {
+  $("progressBlock").classList.remove("on");
+  $("result").classList.add("on");
+  const roles = [...new Set(t.segments.map(s => s.role))];
+  $("resultMeta").textContent =
+    `${t.segments.length} 段 · ${fmt(t.duration_s)} · 角色 ${roles.join("/")} · 配乐 ${t.bgm}`;
+  /* 全旁白时给出智能提示 */
+  const hasDialogue = roles.some(r => r !== "旁白");
+  const looksLikeStory = /道[，。！？]|说道|吼道|喊道|问道|低声/.test($("textInput").value);
+  if (!hasDialogue && looksLikeStory) {
+    $("noticeBox").innerHTML =
+      "这篇文本没有识别出角色台词，全篇按旁白朗读了。若原文包含对话，建议将台词用中文引号 “ ” 包裹后重新生成，角色音色分配会更准确。";
+    $("noticeBox").classList.add("on");
+  } else {
+    $("noticeBox").classList.remove("on");
+  }
+  renderPlayer();
+  renderCurve(t.segments);
+  renderLegend(t.segments);
+  renderSegList(t.segments);
+  $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* 播放器 */
+function renderPlayer() {
+  if (audioEl) { audioEl.pause(); audioEl.removeAttribute("src"); }
+  audioEl = new Audio(audioBlobUrl);
+  $("playBtn").textContent = "▶";
+  audioEl.onloadedmetadata = () => $("tDur").textContent = fmt(audioEl.duration);
+  audioEl.ontimeupdate = () => {
+    if (!audioEl.duration) return;
+    const p = audioEl.currentTime / audioEl.duration * 100;
+    $("trackFill").style.width = p + "%";
+    $("trackKnob").style.left = p + "%";
+    $("tCur").textContent = fmt(audioEl.currentTime);
+  };
+  audioEl.onended = () => $("playBtn").textContent = "▶";
+}
+$("playBtn").onclick = () => {
+  if (!audioEl) return;
+  if (audioEl.paused) { audioEl.play(); $("playBtn").textContent = "❚❚"; }
+  else { audioEl.pause(); $("playBtn").textContent = "▶"; }
+};
+$("trackBar").onclick = e => {
+  if (!audioEl || !audioEl.duration) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  audioEl.currentTime = (e.clientX - rect.left) / rect.width * audioEl.duration;
+};
+$("dlBtn").onclick = () => {
+  const a = document.createElement("a");
+  a.href = audioBlobUrl;
+  a.download = "audiobook_" + new Date().toISOString().slice(0, 10) + ".mp3";
+  a.click();
+};
+
+function fmt(s) {
+  if (!s || !isFinite(s)) return "0:00";
+  const m = Math.floor(s / 60), ss = Math.round(s % 60);
+  return m + ":" + String(ss).padStart(2, "0");
+}
+
+/* 情绪曲线 */
+function renderCurve(segs) {
+  const svg = $("curve");
+  const W = 860, H = 230, PL = 46, PR = 30, PT = 26, PB = 34;
+  const iw = W - PL - PR, ih = H - PT - PB;
+  const n = segs.length;
+  const X = i => n === 1 ? PL + iw / 2 : PL + i * (iw / (n - 1));
+  const Y = v => PT + (1 - v) * ih;
+
+  let pts = segs.map((s, i) => [X(i), Y(s.intensity)]);
+  const line = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  const area = line + ` L${X(n - 1).toFixed(1)} ${PT + ih} L${X(0).toFixed(1)} ${PT + ih} Z`;
+
+  /* 网格横线 0/0.5/1 */
+  let grid = "";
+  [[1, "强"], [0.5, "中"], [0, "弱"]].forEach(([v, lab]) => {
+    grid += `<line x1="${PL}" x2="${W - PR}" y1="${Y(v)}" y2="${Y(v)}" stroke="#e7e5e4" stroke-width="1" stroke-dasharray="${v === 0.5 ? '2 4' : 'none'}"/>
+             <text x="${PL - 10}" y="${Y(v) + 4}" font-size="10" fill="#a8a29e" text-anchor="end" font-family="sans-serif">${lab}</text>`;
+  });
+
+  const dots = segs.map((s, i) =>
+    `<circle cx="${pts[i][0]}" cy="${pts[i][1]}" r="4.5" fill="${EMO[s.emotion] ? EMO[s.emotion].color : '#a8a29e'}"
+      stroke="#faf9f7" stroke-width="2" data-i="${i}" class="dot" style="cursor:pointer"/>`).join("");
+
+  svg.innerHTML = `
+    ${grid}
+    <path d="${area}" fill="#b45309" opacity="0.06"/>
+    <path d="${line}" fill="none" stroke="#b45309" stroke-width="2" stroke-linejoin="round"
+      class="curve-path"/>
+    ${dots}`;
+
+  /* 描边入场 */
+  const path = svg.querySelector(".curve-path");
+  const len = path.getTotalLength();
+  path.style.strokeDasharray = len;
+  path.style.strokeDashoffset = len;
+  path.getBoundingClientRect();
+  path.style.transition = "stroke-dashoffset .9s ease-out";
+  path.style.strokeDashoffset = "0";
+
+  /* tooltip */
+  const tip = $("tooltip");
+  svg.querySelectorAll(".dot").forEach(d => {
+    d.addEventListener("mouseenter", () => {
+      const s = segs[+d.dataset.i];
+      const e = EMO[s.emotion] || { label: s.emotion };
+      tip.innerHTML = `<div class="tt-emo">${e.label} · 强度 ${Math.round(s.intensity * 100)}% · ${s.role}</div>${s.text.slice(0, 42)}${s.text.length > 42 ? "…" : ""}`;
+      tip.style.left = d.getAttribute("cx") / W * 100 + "%";
+      tip.style.top = d.getAttribute("cy") / H * 100 + "%";
+      tip.style.opacity = 1;
+      d.setAttribute("r", "6");
+    });
+    d.addEventListener("mouseleave", () => { tip.style.opacity = 0; d.setAttribute("r", "4.5"); });
+    d.addEventListener("click", () => openAdjustModal(+d.dataset.i, segs));
+  });
+}
+
+function renderLegend(segs) {
+  const used = [...new Set(segs.map(s => s.emotion))];
+  $("legend").innerHTML = used.map(e =>
+    `<span class="lg"><i style="background:${EMO[e].color}"></i>${EMO[e].label}</span>`).join("");
+}
+
+function renderSegList(segs) {
+  $("segList").innerHTML = segs.map((s, i) => {
+    const e = EMO[s.emotion] || { label: s.emotion, color: "#a8a29e" };
+    return `<div class="seg-item">
+      <span class="seg-idx">${String(i + 1).padStart(2, "0")}</span>
+      <span class="seg-text">${escapeHtml(s.text)}</span>
+      <span class="seg-meta"><span class="em" style="background:${e.color}18;color:${e.color}">${e.label}</span>${s.role} · ${Math.round(s.intensity * 100)}%</span>
+    </div>`;
+  }).join("");
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/* ═════════ 音色创造 / 复制弹窗 ═════════ */
+const modal = $("voiceModal");
+const mContent = $("mContent");
+
+function openModal(html) { mContent.innerHTML = html; modal.classList.add("on"); }
+function closeModal() {
+  modal.classList.remove("on");
+  stopRecording(true);                       // 关窗时清理录音资源
+  if (narrator === "__custom__") narrator = prevNarratorId || MY_CLONE_ID;
+  renderVoices();
+}
+modal.addEventListener("click", e => { if (e.target === modal) closeModal(); });
+
+function openVoiceMenu() {
+  if (narrator !== "__custom__") prevNarratorId = narrator;
+  openModal(`
+    <div class="modal-title">自定义音色</div>
+    <div class="modal-sub">选择一种方式获得属于你的声音。</div>
+    <div class="path-grid">
+      <div class="path-card" id="pathDesign">
+        <div class="path-name">创造新声音</div>
+        <div class="path-desc">调节性别、年龄、音质等参数，从零设计一个独一无二的声音。</div>
+      </div>
+      <div class="path-card" id="pathClone">
+        <div class="path-name">复制我的声音</div>
+        <div class="path-desc">朗读一段文字完成录音，用你的真实音色克隆专属声线。</div>
+      </div>
+    </div>
+    <div class="m-actions"><button class="m-btn ghost" onclick="closeModal()">取消</button></div>`);
+  $("pathDesign").onclick = openDesignPanel;
+  $("pathClone").onclick = openClonePanel;
+}
+
+/* ── 路径一：创造 ───────────────── */
+const DESIGN_SLIDERS = [
+  { key: "gender", label: "声线", left: "女声", right: "男声",
+    words: ["年轻女性", "中性嗓音", "成熟男性"] },
+  { key: "age", label: "年龄感", left: "少年", right: "沉稳年长",
+    words: ["少年感", "年轻", "三十岁左右", "四十岁上下", "成熟年长"] },
+  { key: "timbre", label: "音质", left: "清亮", right: "浑厚",
+    words: ["清亮通透", "清亮", "自然均衡", "偏低沉", "浑厚低沉"] },
+  { key: "pace", label: "语速风格", left: "舒缓", right: "明快",
+    words: ["语速缓慢从容", "语速平缓", "语速适中", "语速偏快", "语速轻快利落"] },
+  { key: "energy", label: "情感基调", left: "平静", right: "热情",
+    words: ["平静温和", "沉稳内敛", "亲切自然", "活泼开朗", "热情富有感染力"] },
+];
+
+function designPrompt(values) {
+  const pick = (key, idx) => DESIGN_SLIDERS.find(s => s.key === key).words[Math.min(idx, 4)];
+  const gender = values.gender >= 66 ? "男性" : values.gender <= 33 ? "女性" : "";
+  const age = pick("age", Math.round(values.age / 25));
+  const timbre = pick("timbre", Math.round(values.timbre / 25));
+  const pace = pick("pace", Math.round(values.pace / 25));
+  const energy = pick("energy", Math.round(values.energy / 25));
+  return `一位${age ? age : "成年人"}的${gender || "中性"}声音，音色${timbre}，${pace}，情感基调${energy}，亲切有温度，适合朗读有声书。`;
+}
+
+function openDesignPanel() {
+  const defaults = { gender: 15, age: 50, timbre: 30, pace: 40, energy: 45 };
+  openModal(`
+    <div class="modal-title">创造新声音</div>
+    <div class="modal-sub">拖动滑块塑造你想要的声音，生成后可试听并保存到音色列表。</div>
+    ${DESIGN_SLIDERS.map(s => `
+      <div class="slider-row">
+        <div class="slider-cap"><span>${s.label}</span><b id="cap_${s.key}"></b></div>
+        <input type="range" min="0" max="100" value="${defaults[s.key]}" id="sl_${s.key}">
+      </div>`).join("")}
+    <div class="prompt-preview" id="promptPreview"></div>
+    <div class="rec-status" id="designStatus"></div>
+    <div class="m-actions">
+      <button class="m-btn ghost" onclick="closeModal()">取消</button>
+      <button class="m-btn primary" id="designGo">生成并试听</button>
+    </div>`);
+
+  const read = () => Object.fromEntries(DESIGN_SLIDERS.map(s => [s.key, +$("sl_" + s.key).value]));
+  const refresh = () => {
+    DESIGN_SLIDERS.forEach(s => $("cap_" + s.key).textContent = s.words[Math.round(+$("sl_" + s.key).value / 25)]);
+    $("promptPreview").textContent = designPrompt(read());
+  };
+  DESIGN_SLIDERS.forEach(s => $("sl_" + s.key).oninput = refresh);
+  refresh();
+
+  $("designGo").onclick = async () => {
+    const btn = $("designGo"), st = $("designStatus");
+    btn.disabled = true;
+    st.innerHTML = "正在创造声音…首次生成约需 20~40 秒";
+    try {
+      const res = await fetch(API + "/voices/design", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: designPrompt(read()) })
+      });
+      const obj = await res.json();
+      if (!res.ok) throw new Error(obj.error || "HTTP " + res.status);
+      st.innerHTML = `<span style="color:#16a34a">生成成功！正在播放试听…</span>`;
+      playPreview(obj.preview_base64);
+      saveCustomVoice({
+        id: obj.voice_id,
+        name: "设计音色 · " + new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
+        tag: "MiniMax 设计"
+      });
+      narrator = obj.voice_id;
+      setTimeout(() => { closeModal(); }, 1600);
+    } catch (e) {
+      btn.disabled = false;
+      st.innerHTML = `<div class="m-error">生成失败：${escapeHtml(e.message)}<br>请稍后重试；若持续失败请检查 MiniMax 服务余额。</div>`;
+    }
+  };
+}
+
+function playPreview(b64) {
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  new Audio(URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }))).play()
+    .catch(() => {});
+}
+
+/* ── 路径二：复制（录音克隆） ───────────── */
+let mediaStream = null, recorder = null, recChunks = [], recTimer = null, recStart = 0;
+
+function stopRecording(silent) {
+  if (recorder && recorder.state === "recording") recorder.stop();
+  if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+  if (recTimer) { clearInterval(recTimer); recTimer = null; }
+  if (!silent) return;
+  recorder = null; recChunks = [];
+}
+
+function openClonePanel() {
+  openModal(`
+    <div class="modal-title">复制我的声音</div>
+    <div class="modal-sub">
+      请安静环境下朗读下面的文字（建议 6~15 秒），完成后系统将克隆出你的专属声线。
+      <div class="rec-text-block">${CLONE_TEXT}</div>
+    </div>
+    <div class="rec-controls">
+      <button class="rec-btn" id="recBtn"><span class="dot-in"></span><span id="recBtnText">开始录音</span></button>
+      <span class="rec-status" id="recTime">0.0 s</span>
+    </div>
+    <div class="rec-status" id="cloneStatus">点击「开始录音」并朗读上方文字</div>
+    <div id="cloneExtra"></div>
+    <div class="m-actions">
+      <button class="m-btn ghost" onclick="closeModal()">取消</button>
+    </div>`);
+
+  $("recBtn").onclick = toggleRecord;
+}
+
+async function toggleRecord() {
+  const btn = $("recBtn"), txt = $("recBtnText"), stat = $("cloneStatus");
+  if (recorder && recorder.state === "recording") {          // 停止
+    recorder.stop();
+    return;
+  }
+  /* 开始：请求麦克风权限 */
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    const denied = e.name === "NotAllowedError" || e.name === "SecurityError";
+    stat.innerHTML = `<div class="m-error">${
+      denied
+        ? "麦克风权限被拒绝。请在浏览器地址栏的权限设置中允许本页面使用麦克风，然后重新点击「开始录音」。"
+        : "无法访问麦克风：" + escapeHtml(e.name || e.message) + "。请确认设备已连接麦克风后重试。"
+    }</div>`;
+    return;
+  }
+  recChunks = [];
+  const mime = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
+  recorder = new MediaRecorder(mediaStream, mime ? { mimeType: mime } : undefined);
+  recorder.ondataavailable = ev => { if (ev.data.size) recChunks.push(ev.data); };
+  recorder.onstop = onRecordStop;
+  recorder.start();
+  recStart = Date.now();
+  btn.classList.add("recording");
+  txt.textContent = "停止录音";
+  stat.textContent = "录音中，请照着上方文字匀速朗读…";
+  recTimer = setInterval(() => {
+    const sec = (Date.now() - recStart) / 1000;
+    $("recTime").textContent = sec.toFixed(1) + " s";
+    if (sec >= 30) { recorder.state === "recording" && recorder.stop(); }   // 上限 30s
+  }, 100);
+}
+
+function onRecordStop() {
+  clearInterval(recTimer);
+  $("recBtn").classList.remove("recording");
+  $("recBtnText").textContent = "重新录音";
+  if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+
+  const sec = (Date.now() - recStart) / 1000;
+  const blob = new Blob(recChunks, { type: recorder.mimeType || "audio/webm" });
+  const stat = $("cloneStatus");
+  recorder = null;
+
+  if (sec < 4) {
+    stat.innerHTML = `<div class="m-error">录音时长仅 ${sec.toFixed(1)} 秒，太短了。请点击「重新录音」，完整朗读上方的诗句后稍等片刻再停止。</div>`;
+    return;
+  }
+
+  /* 回放确认 */
+  const replayUrl = URL.createObjectURL(blob);
+  $("cloneExtra").innerHTML = `
+    <audio controls src="${replayUrl}" style="width:100%;margin-bottom:12px;"></audio>
+    <div style="font-size:0.78rem;color:var(--ink-faint);margin-bottom:8px;">试听无误后，为这个声音起个名字：</div>
+    <input class="name-input" id="cloneName" maxlength="16" placeholder="例如：我的声音" value="我的声音">
+    <div class="m-actions"><button class="m-btn primary" id="cloneGo">确认并克隆</button></div>
+    <div class="rec-status" id="cloneProgress"></div>`;
+
+  $("cloneGo").onclick = async () => {
+    const name = ($("cloneName").value.trim() || "我的声音").slice(0, 16);
+    const go = $("cloneGo"), prog = $("cloneProgress");
+    go.disabled = true;
+    go.textContent = "克隆中…";
+    prog.innerHTML = "正在上传音频并训练声学模型…约需 10~60 秒";
+    try {
+      const b64 = await new Promise((ok, err) => {
+        const fr = new FileReader();
+        fr.onload = () => ok(fr.result.split(",")[1]);
+        fr.onerror = () => err(new Error("读取录音失败"));
+        fr.readAsDataURL(blob);
+      });
+      const res = await fetch(API + "/voices/clone", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audio_base64: b64, format: blob.type.includes("webm") ? "webm" : "mp3",
+                               text: CLONE_TEXT })
+      });
+      const obj = await res.json();
+      if (!res.ok) throw new Error(obj.error || "HTTP " + res.status);
+      saveCustomVoice({ id: MY_CLONE_ID, name, tag: "声音复刻 · 刚录制" });
+      narrator = MY_CLONE_ID;
+      prog.innerHTML = `<div class="m-success">克隆成功！「${escapeHtml(name)}」已加入左侧音色列表，可以直接生成了。</div>`;
+      setTimeout(closeModal, 2200);
+    } catch (e) {
+      go.disabled = false;
+      go.textContent = "确认并克隆";
+      prog.innerHTML = `<div class="m-error">克隆失败：${escapeHtml(e.message)}<br>常见原因：录音噪音过大、与提示文本不符。可点「重新录音」再试一次。</div>`;
+    }
+  };
+}
+</script>
+</body>
+</html>

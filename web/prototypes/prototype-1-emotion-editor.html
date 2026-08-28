@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>原型 1 · 情绪曲线编辑器 — 声卷</title>
+<style>
+  :root { --paper:#faf9f7; --ink:#1c1917; --soft:#57534e; --faint:#a8a29e; --line:#e7e5e4; --accent:#b45309; --serif:"Noto Serif SC","STSong",serif; --sans:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--paper); color:var(--ink); font-family:var(--sans); line-height:1.65; }
+  .badge { display:inline-block; padding:3px 10px; border:1px solid var(--accent); color:var(--accent); border-radius:999px; font-size:0.72rem; letter-spacing:0.15em; }
+  header { padding:20px 48px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  .brand { font-family:var(--serif); font-size:1.25rem; font-weight:700; }
+  .stage { max-width:900px; margin:0 auto; padding:40px 32px 80px; }
+  h1 { font-family:var(--serif); font-size:1.6rem; margin-bottom:8px; }
+  .desc { color:var(--soft); font-size:0.9rem; margin-bottom:32px; }
+  .editor { display:grid; grid-template-columns:1fr 240px; gap:32px; }
+  .curve-box { border:1px solid var(--line); border-radius:8px; padding:20px; background:#fff; }
+  .seg-panel { border:1px solid var(--line); border-radius:8px; padding:16px; background:#fff; max-height:420px; overflow-y:auto; }
+  .seg { padding:10px 8px; border-bottom:1px solid var(--line); cursor:pointer; transition:background .15s; border-radius:4px; }
+  .seg:hover, .seg.sel { background:#fef3e7; }
+  .seg .t { font-size:0.82rem; }
+  .seg .m { font-size:0.7rem; color:var(--faint); margin-top:2px; }
+  .adjust { margin-top:20px; padding:16px; border:1px dashed var(--line-strong); border-radius:8px; }
+  .adjust h3 { font-size:0.9rem; margin-bottom:4px; }
+  .adjust .who { font-size:0.75rem; color:var(--faint); margin-bottom:10px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .val { text-align:center; font-family:monospace; font-size:1rem; color:var(--accent-deep,#92400e); }
+  .btn { margin-top:14px; width:100%; padding:10px; background:var(--ink); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:0.85rem; }
+  .note { margin-top:32px; font-size:0.78rem; color:var(--faint); border-top:1px solid var(--line); padding-top:16px; line-height:1.8; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">声卷</span>
+  <span class="badge">功能原型 · PROTOTYPE 1</span>
+</header>
+<div class="stage">
+  <h1>情绪曲线编辑器</h1>
+  <p class="desc">生成完成后，点击曲线上的段落圆点（或在右侧列表选中），在下方滑块中调整该段朗读情绪强度，系统只重合成该段（约 3 秒），其余段落保持不变。</p>
+
+  <div class="editor">
+    <div class="curve-box">
+      <svg viewBox="0 0 640 220" style="width:100%">
+        <line x1="40" x2="620" y1="30" y2="30" stroke="#eee"/><line x1="40" x2="620" y1="110" y2="110" stroke="#eee" stroke-dasharray="2 4"/><line x1="40" x2="620" y1="190" y2="190" stroke="#eee"/>
+        <path d="M40 170 L100 150 L160 155 L220 120 L280 60 L340 40 L400 90 L460 150 L520 130 L580 170" fill="none" stroke="#b45309" stroke-width="2"/>
+        <g id="dots">
+          <circle cx="40" cy="170" r="5" fill="#a8a29e"/><circle cx="100" cy="150" r="5" fill="#a8a29e"/><circle cx="160" cy="155" r="5" fill="#a8a29e"/>
+          <circle cx="220" cy="120" r="5" fill="#7c6ba0"/><circle cx="280" cy="60" r="6" fill="#b91c1c" stroke="#fff" stroke-width="2"/>
+          <circle cx="340" cy="40" r="6" fill="#b91c1c" stroke="#fff" stroke-width="2"/><circle cx="400" cy="90" r="5" fill="#92400e"/>
+          <circle cx="460" cy="150" r="5" fill="#64748b"/><circle cx="520" cy="130" r="5" fill="#64748b"/><circle cx="580" cy="170" r="5" fill="#a8a29e"/>
+        </g>
+        <text x="28" y="34" font-size="10" fill="#a8a29e">强</text><text x="28" y="194" font-size="10" fill="#a8a29e">弱</text>
+      </svg>
+    </div>
+    <div class="seg-panel" id="segPanel">
+      <div class="seg sel"><div class="t">"这不可能……"</div><div class="m">林晚 · 恐惧 60%</div></div>
+      <div class="seg"><div class="t">警报骤然响起，红灯把整个房间染成血色。</div><div class="m">旁白 · 愤怒 80%</div></div>
+      <div class="seg"><div class="t">"林晚！快离开那里！"</div><div class="m">陈默 · 愤怒 90%</div></div>
+      <div class="seg"><div class="t">火光中，她回头望了一眼那块燃烧的屏幕。</div><div class="m">旁白 · 悲伤 70%</div></div>
+    </div>
+  </div>
+
+  <div class="adjust">
+    <h3>调整第 5 段情绪强度</h3>
+    <div class="who">"这不可能……" · 林晚 · 当前 60%</div>
+    <input type="range" min="5" max="100" value="60" oninput="this.nextElementSibling.textContent=this.value+'%'">
+    <div class="val">60%</div>
+    <button class="btn">应用并试听（增量重合成 · 约 3 秒）</button>
+  </div>
+
+  <div class="note">
+    原型说明：本页为交互布局原型，用于指导正式页面的段落选择、强度调节与增量重合成按钮的排布。
+    正式实现见 <b>web/index.html</b>（已上线，点击曲线圆点即可触发真实重合成）。
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,21 @@
+# 密钥与本地配置
+.env
+.env.local
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 数据库文件（含用户数据，不入库）
+db/shengjuan.db
+*.db-journal
+
+# 音频产物与临时文件
+outputs/
+*.mp3.tmp
+/tmp/
+
+# 大文件：曲库不入库（可用 make_bgm_v2.py 重新生成）
+# assets/bgm/*.mp3

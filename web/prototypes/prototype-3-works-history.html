@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>原型 3 · 作品历史库 — 声卷</title>
+<style>
+  :root { --paper:#faf9f7; --ink:#1c1917; --soft:#57534e; --faint:#a8a29e; --line:#e7e5e4; --accent:#b45309; --serif:"Noto Serif SC","STSong",serif; --sans:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--paper); color:var(--ink); font-family:var(--sans); line-height:1.65; }
+  .badge { display:inline-block; padding:3px 10px; border:1px solid var(--accent); color:var(--accent); border-radius:999px; font-size:0.72rem; letter-spacing:0.15em; }
+  header { padding:20px 48px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  .brand { font-family:var(--serif); font-size:1.25rem; font-weight:700; }
+  .stage { max-width:900px; margin:0 auto; padding:40px 32px 80px; }
+  h1 { font-family:var(--serif); font-size:1.6rem; margin-bottom:8px; }
+  .desc { color:var(--soft); font-size:0.9rem; margin-bottom:28px; }
+  .work { display:grid; grid-template-columns:56px 1fr auto; gap:20px; align-items:center;
+          background:#fff; border:1px solid var(--line); border-radius:8px; padding:20px 22px; margin-bottom:14px; }
+  .cover { width:56px; height:56px; border-radius:8px; display:grid; place-items:center;
+           font-family:var(--serif); font-size:1.4rem; color:#fff; }
+  .w-title { font-family:var(--serif); font-size:1.05rem; font-weight:700; margin-bottom:4px; }
+  .w-meta { font-size:0.75rem; color:var(--faint); }
+  .w-meta span { margin-right:12px; }
+  .w-acts { display:flex; flex-direction:column; gap:8px; }
+  .w-btn { padding:7px 16px; border:1px solid var(--line-strong); border-radius:6px; background:#fff; color:var(--soft); font-size:0.75rem; cursor:pointer; }
+  .w-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .w-btn.play { background:var(--ink); color:#fff; border-color:var(--ink); }
+  .emo-mini { display:flex; gap:4px; margin-top:6px; }
+  .emo-mini i { width:16px; height:4px; border-radius:2px; display:inline-block; }
+  .note { margin-top:28px; font-size:0.78rem; color:var(--faint); border-top:1px solid var(--line); padding-top:16px; line-height:1.8; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">声卷</span>
+  <span class="badge">功能原型 · PROTOTYPE 3</span>
+</header>
+<div class="stage">
+  <h1>作品历史库</h1>
+  <p class="desc">所有生成过的有声作品集中管理：重听、下载、回看情绪曲线，也可基于同一文本换音色重新生成。</p>
+
+  <div class="work">
+    <div class="cover" style="background:#92400e">末</div>
+    <div>
+      <div class="w-title">末班车（四声线广播剧）</div>
+      <div class="w-meta"><span>3 分 18 秒</span><span>旁白 + 老周 + 小雨 + 阿婆</span><span>BGM: 中性叙事</span><span>2026-08-28 09:15</span></div>
+      <div class="emo-mini"><i style="background:#a8a29e"></i><i style="background:#7c6ba0"></i><i style="background:#b91c1c"></i><i style="background:#92400e"></i><i style="background:#64748b"></i></div>
+    </div>
+    <div class="w-acts"><button class="w-btn play">播放</button><button class="w-btn">下载 MP3</button></div>
+  </div>
+
+  <div class="work">
+    <div class="cover" style="background:#0e7490">信</div>
+    <div>
+      <div class="w-title">信号（科幻短篇）</div>
+      <div class="w-meta"><span>3 分 28 秒</span><span>旁白 + 林晚 + 陈默</span><span>BGM: 紧张</span><span>2026-08-28 08:44</span></div>
+      <div class="emo-mini"><i style="background:#a8a29e"></i><i style="background:#0e7490"></i><i style="background:#92400e"></i><i style="background:#64748b"></i><i style="background:#d97706"></i></div>
+    </div>
+    <div class="w-acts"><button class="w-btn play">播放</button><button class="w-btn">下载 MP3</button></div>
+  </div>
+
+  <div class="work">
+    <div class="cover" style="background:#166534">童</div>
+    <div>
+      <div class="w-title">小星星的旅行（睡前故事 · 慢速版）</div>
+      <div class="w-meta"><span>2 分 04 秒</span><span>睡前故事姐姐（设计音色）</span><span>BGM: 平静</span><span>2026-08-27 21:30</span></div>
+      <div class="emo-mini"><i style="background:#a8a29e"></i><i style="background:#94a3b8"></i><i style="background:#d97706"></i><i style="background:#94a3b8"></i><i style="background:#a8a29e"></i></div>
+    </div>
+    <div class="w-acts"><button class="w-btn play">播放</button><button class="w-btn">下载 MP3</button></div>
+  </div>
+
+  <div class="note">
+    原型说明：作品列表卡片含情绪概览色带（该篇各段情绪分布缩略）、播放与下载入口。
+    数据来源对应数据库 works 表（audio_path/duration_s/bgm_name），正式版接入云端任务历史后即为成品页。
+    「重新生成」「多版本导出（慢速/双语/预告片）」按钮对应 PRD F6，属下一迭代范围。
+  </div>
+</div>
+</body>
+</html>
