@@ -74,6 +74,11 @@
   .voice-name { font-size: 0.9rem; }
   .voice-tag { font-size: 0.72rem; color: var(--ink-faint); }
   .voice-option.active .voice-tag { color: var(--accent-deep); }
+  .group-label {
+    font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em;
+    color: var(--ink-faint); margin: 18px 0 8px; padding-top: 14px;
+    border-top: 1px solid var(--line);
+  }
   .voice-play {
     width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; margin-left: 10px;
     border: 1px solid var(--line-strong); background: #fff; color: var(--ink-soft);
@@ -175,6 +180,44 @@
   .m-btn.primary:disabled { background: var(--line-strong); cursor: not-allowed; }
   .m-btn.ghost { background: transparent; color: var(--ink-soft); border: 1px solid var(--line-strong); }
   .m-btn.ghost:hover { border-color: var(--ink-soft); }
+
+  .book-hit {
+    padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px;
+    cursor: pointer; margin-bottom: 8px; background: #fff;
+    transition: border-color .18s ease, background .18s ease;
+  }
+  .book-hit:hover { border-color: var(--accent); background: var(--accent-wash); }
+  .book-hit-title { font-weight: 600; font-size: 0.9rem; }
+  .book-hit-meta { float: right; font-size: 0.72rem; color: var(--ink-faint); }
+  .book-hit-snippet { font-size: 0.76rem; color: var(--ink-soft); margin-top: 4px; line-height: 1.55; }
+
+  /* 多版本 */
+  .style-row { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .style-row-label { font-size: 0.72rem; color: var(--ink-faint); margin-right: 2px; }
+  .style-chip {
+    padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px;
+    background: #fff; color: var(--ink-soft); cursor: pointer; font-size: 0.75rem;
+    transition: all .16s ease;
+  }
+  .style-chip:hover { border-color: var(--line-strong); }
+  .style-chip.active { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-deep); font-weight: 600; }
+  .version-tabs { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .version-tab {
+    padding: 7px 16px; border: 1px solid var(--line); border-radius: 999px;
+    background: #fff; color: var(--ink-soft); cursor: pointer; font-size: 0.8rem;
+    transition: all .16s ease;
+  }
+  .version-tab:hover { border-color: var(--line-strong); }
+  .version-tab.active { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-deep); font-weight: 600; }
+  .version-tab .vt-dur { font-size: 0.7rem; color: var(--ink-faint); margin-left: 6px; }
+
+  .src-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+  .src-tab {
+    flex: 1; padding: 8px 0; border: 1px solid var(--line); border-radius: 6px;
+    background: #fff; color: var(--ink-soft); cursor: pointer; font-size: 0.8rem;
+    transition: all .16s ease;
+  }
+  .src-tab.active { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-deep); font-weight: 600; }
   .name-input {
     width: 100%; margin-top: 10px; padding: 10px 12px;
     border: 1px solid var(--line); border-radius: 6px;
@@ -222,6 +265,7 @@
     transition: border-color .18s ease;
   }
   textarea:focus { outline: none; border-color: var(--accent); }
+  textarea.dragover { border-color: var(--accent); background: var(--accent-wash); border-style: dashed; }
   .text-meta { display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.75rem; color: var(--ink-faint); }
   .text-meta button {
     background: none; border: none; color: var(--accent-deep); cursor: pointer;
@@ -374,6 +418,14 @@
       <div class="field-note">按全篇情绪加权投票从曲库中选曲，语音段自动压低音乐音量。</div>
     </div>
 
+    <div class="style-row">
+      <span class="style-row-label">多版本</span>
+      <button class="style-chip active" data-style="normal">正常</button>
+      <button class="style-chip" data-style="slow">慢速</button>
+      <button class="style-chip" data-style="bilingual">双语</button>
+      <button class="style-chip" data-style="trailer">预告片</button>
+    </div>
+
     <button class="generate-btn" id="goBtn" disabled>生成有声书</button>
   </aside>
 
@@ -383,10 +435,15 @@
       <p class="work-desc">粘贴小说、散文或故事文本，系统将自动标注每段情绪、分配角色音色并匹配配乐，生成可直接收听的有声成品。</p>
     </div>
 
-    <textarea id="textInput" spellcheck="false"></textarea>
+    <textarea id="textInput" spellcheck="false" placeholder="粘贴文本，或将 TXT 文件拖到这里…"></textarea>
+    <input type="file" id="txtFile" accept=".txt,text/plain" hidden>
     <div class="text-meta">
       <span id="charCount">0 字</span>
-      <button id="fillDemo">填入示例文本</button>
+      <span style="display:flex;gap:14px;">
+        <button id="importTxt">导入本地 TXT</button>
+        <button id="importBook">导入公版书</button>
+        <button id="fillDemo">填入示例文本</button>
+      </span>
     </div>
 
     <div class="progress-block" id="progressBlock">
@@ -402,6 +459,7 @@
     <div class="notice-box" id="noticeBox"></div>
 
     <div class="result" id="result">
+      <div id="versionTabs" class="version-tabs" style="display:none;"></div>
       <div class="sec-head">
         <span class="sec-title">成品</span>
         <span class="sec-sub" id="resultMeta"></span>
@@ -447,6 +505,25 @@
   </div>
 </div>
 
+<!-- 公版书导入弹窗 -->
+<div class="overlay" id="bookModal">
+  <div class="modal">
+    <div class="modal-title">导入公版书</div>
+    <div class="modal-sub">「书库」内置 13 部公有领域古籍（论语 / 庄子 / 西游记 / 诗经…，CC0 协议，简体，国内直连秒开）；「维基文库」需浏览器代理。全文均无版权问题。</div>
+    <div class="src-tabs">
+      <button class="src-tab active" data-src="lib">书库 · 简体</button>
+      <button class="src-tab" data-src="wiki">维基文库</button>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <input id="bookQuery" class="custom-input" style="margin-top:0;flex:1;" type="text"
+        placeholder="搜索书名，如：论语 / 西游记 / 诗经（留空看全部）" spellcheck="false">
+      <button id="bookSearchBtn" class="m-btn primary" style="white-space:nowrap;">搜索</button>
+    </div>
+    <div id="bookStatus" style="font-size:.78rem;color:var(--ink-faint);margin:12px 0 0;min-height:1.2em;"></div>
+    <div id="bookResults" style="margin-top:10px;"></div>
+  </div>
+</div>
+
 <script>
 /* ───────── 数据 ───────── */
 const API = "https://audiobook-api-303602-8-1421728968.sh.run.tcloudbase.com";
@@ -475,6 +552,26 @@ let VOICES = [
   ...BASE_VOICES,
   { id: "__custom__", name: "自定义音色", tag: "创造 / 复制 →" },
 ];
+
+/* 方言通道：四大多方言母音色（Vivi/小何/云舟/小天）× explicit_dialect 切换 8 种方言
+   条目 id 编码为 "speaker@@dialect" */
+const DIALECT_VOICES = [
+  { id: "zh_female_vv_uranus_bigtts@@sichuan",    speaker: "zh_female_vv_uranus_bigtts",    dialect: "sichuan", name: "四川话 · 女", tag: "Vivi 2.0" },
+  { id: "zh_male_m191_uranus_bigtts@@sichuan",    speaker: "zh_male_m191_uranus_bigtts",    dialect: "sichuan", name: "四川话 · 男", tag: "云舟 2.0" },
+  { id: "zh_female_xiaohe_uranus_bigtts@@yue",    speaker: "zh_female_xiaohe_uranus_bigtts", dialect: "yue",     name: "粤语 · 女",   tag: "小何 2.0" },
+  { id: "zh_male_taocheng_uranus_bigtts@@yue",    speaker: "zh_male_taocheng_uranus_bigtts", dialect: "yue",     name: "粤语 · 男",   tag: "小天 2.0" },
+  { id: "zh_female_vv_uranus_bigtts@@dongbei",    speaker: "zh_female_vv_uranus_bigtts",    dialect: "dongbei", name: "东北话 · 女", tag: "Vivi 2.0" },
+  { id: "zh_male_m191_uranus_bigtts@@dongbei",    speaker: "zh_male_m191_uranus_bigtts",    dialect: "dongbei", name: "东北话 · 男", tag: "云舟 2.0" },
+  { id: "zh_female_xiaohe_uranus_bigtts@@beijing",speaker: "zh_female_xiaohe_uranus_bigtts", dialect: "beijing", name: "北京话 · 女", tag: "小何 2.0" },
+  { id: "zh_male_taocheng_uranus_bigtts@@beijing",speaker: "zh_male_taocheng_uranus_bigtts", dialect: "beijing", name: "北京话 · 男", tag: "小天 2.0" },
+  { id: "zh_female_vv_uranus_bigtts@@shanghai",   speaker: "zh_female_vv_uranus_bigtts",    dialect: "shanghai", name: "上海话 · 女", tag: "Vivi 2.0" },
+  { id: "zh_male_m191_uranus_bigtts@@shanghai",   speaker: "zh_male_m191_uranus_bigtts",    dialect: "shanghai", name: "上海话 · 男", tag: "云舟 2.0" },
+];
+
+function parseNarrator(id) {
+  const [speaker, dialect] = String(id).split("@@");
+  return { speaker, dialect: dialect || null };
+}
 
 const EMO = {
   neutral:    { label: "平静", color: "#a8a29e" },
@@ -505,6 +602,8 @@ let audioEl = null;
 let audioBlobUrl = null;
 let lastTaskId = null;
 let lastResult = null;
+let versionList = [];      // 一键多版本：[{style,label,taskId,result,blobUrl,done,error}]
+let currentVersion = -1;
 
 /* ═════════ 段落情绪调整（增量重合成） ═════════ */
 function openAdjustModal(index, segs) {
@@ -566,8 +665,10 @@ function openAdjustModal(index, segs) {
 const $ = id => document.getElementById(id);
 
 /* ───────── 初始化 ───────── */
+let dialectOpen = false;   // 方言分组折叠状态
+
 function renderVoices() {
-  $("voiceList").innerHTML = VOICES.map(v => `
+  const mainList = VOICES.map(v => `
     <div class="voice-option${v.id === narrator ? " active" : ""}" data-id="${v.id}">
       <span class="voice-name">${v.name}</span>
       <span style="display:flex;align-items:center;gap:8px;">
@@ -575,6 +676,18 @@ function renderVoices() {
         ${v.id !== "__custom__" ? `<button class="voice-play" data-pv="${v.id}" title="试听">▶</button>` : ""}
       </span>
     </div>`).join("");
+  const dialectList = DIALECT_VOICES.map(v => `
+    <div class="voice-option${v.id === narrator ? " active" : ""}" data-id="${v.id}">
+      <span class="voice-name">${v.name}</span>
+      <span style="display:flex;align-items:center;gap:8px;">
+        <span class="voice-tag">${v.tag}</span>
+        <button class="voice-play" data-pv="${v.id}" title="试听">▶</button>
+      </span>
+    </div>`).join("");
+  $("voiceList").innerHTML = mainList
+    + `<div class="group-label" id="dialectToggle" style="cursor:pointer;">方言音色 · 四川 / 粤 / 东北 / 北京 / 上海<span style="float:right;">${dialectOpen ? "▾" : "▸"}</span></div>`
+    + `<div id="dialectList" style="display:${dialectOpen ? "block" : "none"};">${dialectList}</div>`;
+  $("dialectToggle").onclick = () => { dialectOpen = !dialectOpen; renderVoices(); };
   document.querySelectorAll(".voice-option").forEach(el => {
     el.onclick = () => {
       narrator = el.dataset.id;
@@ -599,6 +712,7 @@ function resetPreviewBtn() {
   if (previewBtnNow) { previewBtnNow.classList.remove("playing"); previewBtnNow.textContent = "▶"; }
 }
 async function previewVoice(id, btn) {
+  const { speaker, dialect } = parseNarrator(id);
   /* 播放中再次点击同一按钮 = 停止 */
   if (previewBtnNow === btn && previewAudio && !previewAudio.paused) {
     previewAudio.pause();
@@ -616,7 +730,7 @@ async function previewVoice(id, btn) {
     if (!previewCache[id]) {
       const res = await fetch(API + "/voices/preview", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ speaker_id: id })
+        body: JSON.stringify({ speaker_id: speaker, dialect })
       });
       const obj = await res.json();
       if (!res.ok) throw new Error(obj.error || "HTTP " + res.status);
@@ -643,9 +757,60 @@ updateCount();
 $("fillDemo").onclick = () => { $("textInput").value = DEMO_TEXT; updateCount(); };
 $("textInput").addEventListener("input", updateCount);
 
+/* ───────── 本地 TXT 导入 ───────── */
+$("importTxt").onclick = () => $("txtFile").click();
+$("txtFile").onchange = e => { if (e.target.files[0]) importFile(e.target.files[0]); e.target.value = ""; };
+
+const dropZone = $("textInput");
+["dragover", "dragenter"].forEach(ev =>
+  dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add("dragover"); }));
+["dragleave", "drop"].forEach(ev =>
+  dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove("dragover"); }));
+dropZone.addEventListener("drop", e => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) importFile(f);
+});
+
+/* UTF-8 优先（严格模式失败即转 GBK）——网文 TXT 多为 GBK 编码 */
+async function decodeText(buf) {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buf);
+  } catch {
+    return new TextDecoder("gbk").decode(buf);
+  }
+}
+
+async function importFile(file) {
+  if (file.size > 20 * 1024 * 1024) { showError("文件超过 20MB 上限，请拆分后导入"); return; }
+  try {
+    const buf = await file.arrayBuffer();
+    let text = (await decodeText(buf)).replace(/\r\n?/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+    if (!text) { showError("文件内容为空"); return; }
+    $("textInput").value = text;
+    updateCount();
+
+    /* 长文诊断：章节数 / 预估生成时长 */
+    const chapters = (text.match(/第[一二三四五六七八九十百千0-9]+[章回节卷][^\n]{0,30}/g) || []).length;
+    const chars = text.replace(/\s/g, "").length;
+    const est = Math.round(chars / 4.2 / 60);   // 约 4.2 字/秒
+    let tip = `已导入「${file.name}」(${chars.toLocaleString()} 字，预估成品约 ${est >= 1 ? est + " 分钟" : Math.round(chars / 4.2) + " 秒"})`;
+    if (chapters >= 2) tip += ` · 检测到 ${chapters} 个章节标记`;
+    if (chars > 20000) {
+      tip += "。长文本会消耗较多合成额度与等待时间，建议按章节分段生成";
+      if (chapters >= 2) tip += "（可只粘贴需要的章节）";
+    }
+    $("noticeBox").textContent = tip;
+    $("noticeBox").classList.add("on");
+    dropZone.scrollIntoView({ behavior: "smooth", block: "center" });
+  } catch (err) {
+    showError("导入失败：" + (err.message || "文件读取异常"));
+  }
+}
+
 function updateCount() {
-  const n = $("textInput").value.replace(/\s/g, "").length;
-  $("charCount").textContent = n + " 字";
+  const raw = $("textInput").value;
+  const n = raw.replace(/\s/g, "").length;
+  $("charCount").textContent = n + " 字" + (raw.length > 5000 ? "（超单次 10000 字上限，将无法直接生成）" : "");
   $("goBtn").disabled = n < 10;
 }
 
@@ -658,33 +823,356 @@ fetch(API + "/health").then(r => r.json()).then(() => {
   $("goBtn").disabled = true;
 });
 
+/* ───────── 公版书导入（维基文库） ───────── */
+const bookModal = $("bookModal");
+bookModal.addEventListener("click", e => { if (e.target === bookModal) bookModal.classList.remove("on"); });
+$("importBook").onclick = () => {
+  bookModal.classList.add("on");
+  $("bookResults").innerHTML = "";
+  $("bookStatus").textContent = "";
+  $("bookQuery").focus();
+};
+
+function bookStatus(msg) { $("bookStatus").textContent = msg; }
+
+/* ── 数据源切换 ── */
+let bookSource = "lib";            // lib（内置书库） | wiki
+document.querySelectorAll(".src-tab").forEach(tab => {
+  tab.onclick = () => {
+    bookSource = tab.dataset.src;
+    document.querySelectorAll(".src-tab").forEach(t => t.classList.toggle("active", t === tab));
+    $("bookResults").innerHTML = "";
+    bookStatus("");
+    $("bookQuery").placeholder = bookSource === "lib"
+      ? "搜索书名，如：论语 / 西游记 / 诗经（留空看全部）"
+      : "搜索篇名，如：赤壁賦 / 阿Q正传（需代理）";
+  };
+});
+
+let libIndexCache = null;          // 书库目录缓存
+let currentLibBook = null;         // 当前浏览的书（章节列表态）
+
+async function cloudJson(url) {
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+  return data;
+}
+
+async function wikiFetch(path, params, cloudPath) {
+  /* 浏览器直连优先（维基文库国内需代理，走本机代理即可）；超时/失败再试云端中转 */
+  const qs = new URLSearchParams({ ...params, format: "json", formatversion: 2, origin: "*" });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const res = await fetch("https://zh.wikisource.org/w/api.php?" + qs, { signal: ctrl.signal });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return await res.json();
+  } catch (directErr) {
+    const res = await fetch(API + cloudPath + "?" + new URLSearchParams(params));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function searchBooks() {
+  const q = $("bookQuery").value.trim();
+  if (!q) return;
+  bookStatus("检索中…");
+  $("bookResults").innerHTML = "";
+  try {
+    let hits;
+    if (bookSource === "lib") {
+      /* 内置书库：目录本地过滤 → 二级章节列表 → 导入章节 */
+      if (!libIndexCache) {
+        libIndexCache = await fetch("lib/index.json").then(r => r.json());
+      }
+      hits = libIndexCache.books.filter(b =>
+        !q || b.title.includes(q) || b.s.includes(q));
+      if (!hits.length) { bookStatus(`书库里没有「${q}」，当前收录：` + libIndexCache.books.map(b => b.s).join("、")); return; }
+      bookStatus(hits.length + " 部书，点击选择章节");
+      renderBookList(hits);
+      return;
+    }
+    const data = await wikiFetch(null, { action: "query", list: "search", srsearch: q, srlimit: 8, srprop: "snippet|wordcount" }, "/books/search");
+    hits = (data.query && data.query.search) || [];
+    if (!hits.length) { bookStatus("没有找到「" + q + "」，试试繁体或全名（维基文库多用繁体）"); return; }
+    bookStatus(`找到 ${hits.length} 条结果，点击导入`);
+    $("bookResults").innerHTML = hits.map((it, i) => `
+      <div class="book-hit" data-i="${i}">
+        <span class="book-hit-title">${escapeHtml(it.title)}</span>
+        <span class="book-hit-meta">${(it.wordcount / 1000).toFixed(1)} 千字</span>
+        <div class="book-hit-snippet">${it.snippet || ""}</div>
+      </div>`).join("");
+    window.__bookHits = hits;
+    document.querySelectorAll(".book-hit").forEach(el => {
+      el.onclick = () => fetchBook(window.__bookHits[+el.dataset.i].title);
+    });
+  } catch (e) {
+    bookSource === "lib"
+      ? bookStatus("书库加载失败：" + e.message)
+      : bookStatus("检索失败：" + e.message + "（访问维基文库需要代理，请确认代理已开启后重试）");
+  }
+}
+
+function renderBookList(books) {
+  $("bookResults").innerHTML = books.map((b, i) => `
+    <div class="book-hit" data-i="${i}">
+      <span class="book-hit-title">${escapeHtml(b.s)}</span>
+      <span class="book-hit-meta">${b.chapters} 章 · ${(b.chars / 1000).toFixed(0)} 千字</span>
+      <div class="book-hit-snippet">繁体原题：${escapeHtml(b.title)}</div>
+    </div>`).join("");
+  document.querySelectorAll(".book-hit").forEach(el => {
+    el.onclick = () => openLibBook(books[+el.dataset.i]);
+  });
+}
+
+async function openLibBook(book) {
+  bookStatus(`正在打开《${book.s}》…`);
+  try {
+    const data = await fetch(`lib/${encodeURIComponent(book.id)}.json`).then(r => r.json());
+    currentLibBook = { book, data };
+    const chapters = data.chapters;
+    bookStatus(`《${book.s}》共 ${chapters.length} 章，点击章节导入`);
+    $("bookResults").innerHTML =
+      `<div style="margin-bottom:8px;"><button id="libBack" class="m-btn ghost" style="padding:4px 14px;">← 返回书目</button></div>`
+      + chapters.map((ch, i) => `
+      <div class="book-hit" data-i="${i}">
+        <span class="book-hit-title">${escapeHtml(ch.t)}</span>
+        <span class="book-hit-meta">${ch.p.reduce((a, p) => a + p.length, 0)} 字</span>
+      </div>`).join("");
+    $("libBack").onclick = () => { currentLibBook = null; searchBooks(); };
+    $("bookResults").querySelectorAll(".book-hit").forEach(el => {
+      el.onclick = () => importChapter(chapters[+el.dataset.i]);
+    });
+  } catch (e) {
+    bookStatus("打开失败：" + e.message);
+  }
+}
+
+function importChapter(ch) {
+  const body = ch.p.join("\n\n");
+  $("textInput").value = body;
+  updateCount();
+  bookModal.classList.remove("on");
+  const chars = body.replace(/\s/g, "").length;
+  let tip = `已导入《${currentLibBook.book.s}·${ch.t}》(${chars.toLocaleString()} 字，预估成品约 ${Math.round(chars / 4.2 / 60)} 分钟)`;
+  if (chars > 5000) tip += `。单次生成上限 10000 字——本章过长时请截取部分生成`;
+  $("noticeBox").textContent = tip;
+  $("noticeBox").classList.add("on");
+  dropZone.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+$("bookSearchBtn").onclick = searchBooks;
+$("bookQuery").addEventListener("keydown", e => { if (e.key === "Enter") searchBooks(); });
+
+async function fetchBook(title) {
+  bookStatus(`正在导入《${title}》…`);
+  try {
+    const body = await fetchWikiText(title);
+    if (body.length < 100) throw new Error("该页面疑似目录页或内容过短，请尝试具体章节页（如「三國演義/第一回」）");
+    $("textInput").value = body;
+    updateCount();
+    bookModal.classList.remove("on");
+    const chars = body.replace(/\s/g, "").length;
+    let tip = `已导入《${title}》(${chars.toLocaleString()} 字，预估成品约 ${Math.round(chars / 4.2 / 60)} 分钟)`;
+    if (chars > 5000) tip += `。单次生成上限 10000 字——请选取一段或一个章节粘贴后生成`;
+    $("noticeBox").textContent = tip;
+    $("noticeBox").classList.add("on");
+    dropZone.scrollIntoView({ behavior: "smooth", block: "center" });
+  } catch (e) {
+    bookStatus("导入失败：" + e.message);
+  }
+}
+
+async function fetchWikiText(title) {
+  const data = await wikiFetch(null, { action: "parse", page: title, prop: "text" }, "/books/fetch");
+  const raw = (data.parse && data.parse.text) || "";
+  const text = raw
+    .replace(/<(style|script)[^>]*>[\s\S]*?<\/\1>/g, "")
+    .replace(/<(table|sup)[^>]*>[\s\S]*?<\/(table|sup)>/g, "")
+    .replace(/<\/(p|div|li|h[1-6])>|<br\s*\/?>/g, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#160;|&nbsp;/g, " ");
+  const paras = text.split("\n").map(s => s.trim())
+    .map(s => s.replace(/一作「[^」]*」/g, ""))                       /* 维基文库异文标注 */
+    .filter(s => s && !/^[\s·|()\[\]（）「」←→-]+$/.test(s))
+    .filter(s => !/^(姊妹计划|本作品|百科|图册|分类|数据项)/.test(s));  /* 页头导航杂质 */
+  return paras.join("\n\n");
+}
+
 /* ───────── 生成 ───────── */
-const STAGE_CN = { queued: "排队中", analyzing: "情感分析中", synthesizing: "语音合成中", mixing: "混音合成中" };
+const STAGE_CN = { queued: "排队中", analyzing: "情感分析中", translating: "英文翻译中", synthesizing: "语音合成中", mixing: "混音合成中", multi: "多版本" };
+const STYLE_CN = { normal: "正常", slow: "慢速", bilingual: "双语", trailer: "预告片" };
+
+/* 多版本风格勾选 */
+let selectedStyles = new Set(["normal"]);
+document.querySelectorAll(".style-chip").forEach(chip => {
+  chip.onclick = () => {
+    const s = chip.dataset.style;
+    if (selectedStyles.has(s)) {
+      if (selectedStyles.size > 1) selectedStyles.delete(s);     // 至少保留一个
+    } else {
+      selectedStyles.add(s);
+    }
+    document.querySelectorAll(".style-chip").forEach(c =>
+      c.classList.toggle("active", selectedStyles.has(c.dataset.style)));
+    const n = selectedStyles.size;
+    $("goBtn").textContent = n > 1 ? `一键生成 ${n} 个版本` : "生成有声书";
+  };
+});
+
+function voiceLabelOf(id) {
+  const v = VOICES.find(v => v.id === id);
+  if (v) return v.name;
+  const [spk, dia] = String(id).split("@@");
+  const dv = DIALECT_VOICES.find(v => v.id === id);
+  return dv ? dv.name : (dia ? `方言 ${dia}` : spk);
+}
 
 $("goBtn").onclick = async () => {
   const text = $("textInput").value.trim();
   const narratorId = currentNarrator();
   if (narratorId === "__custom__" || !narratorId) { showError("请先在左侧「自定义音色」中选择创造或复制一个音色"); return; }
+  /* 长文预检：单次生成上限 10000 字 */
+  if (text.length > 10000) {
+    $("progressBlock").classList.remove("on");
+    $("noticeBox").innerHTML =
+      `当前文本 <b>${text.length.toLocaleString()}</b> 字，超出单次 10000 字上限。` +
+      `建议只选取一段或一个章节。` +
+      `<button id="trimGo" style="margin-left:8px;padding:3px 12px;border:1px solid var(--accent);border-radius:6px;background:var(--accent-wash);color:var(--accent-deep);cursor:pointer;font-size:.75rem;">截取前 10000 字直接生成</button>`;
+    $("noticeBox").classList.add("on");
+    $("noticeBox").scrollIntoView({ behavior: "smooth", block: "center" });
+    const trimBtn = $("trimGo");
+    if (trimBtn) trimBtn.onclick = () => {
+      $("textInput").value = text.slice(0, 10000);
+      updateCount();
+      $("goBtn").click();
+    };
+    return;
+  }
+  const styles = VOICES && [...selectedStyles];
+  const multi = styles.length > 1;
   $("goBtn").disabled = true;
   $("result").classList.remove("on");
+  $("versionTabs").style.display = "none";
   $("errorBox").classList.remove("on");
   $("noticeBox").classList.remove("on");
   $("progressBlock").classList.add("on");
-  setStage("queued", "提交任务…");
 
-  try {
+  /* 提交失败时透出后端的具体错误信息 */
+  const submitTask = async body => {
     const res = await fetch(API + "/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, narrator: narratorId, bgm: $("bgmToggle").checked })
+      body: JSON.stringify(body)
     });
-    if (!res.ok) throw new Error("提交失败 HTTP " + res.status);
-    const { task_id } = await res.json();
-    poll(task_id);
-  } catch (e) {
-    showError(e.message);
+    let data = {};
+    try { data = await res.json(); } catch { /* 非 JSON 响应 */ }
+    if (!res.ok) throw new Error(data.error || "提交失败 HTTP " + res.status);
+    return data.task_id;
+  };
+
+  if (!multi) {
+    setStage("queued", "提交任务…");
+    try {
+      const { speaker: narratorSpk, dialect: narratorDialect } = parseNarrator(narratorId);
+      const task_id = await submitTask({ text, narrator: narratorSpk, dialect: narratorDialect, bgm: $("bgmToggle").checked, style: styles[0] });
+      poll(task_id);
+    } catch (e) {
+      showError(e.message);
+    }
+    return;
+  }
+
+  /* ── 一键多版本：每个风格提交一个任务，并行推进 ── */
+  const { speaker: narratorSpk, dialect: narratorDialect } = parseNarrator(narratorId);
+  versionList = [];
+  for (const st of styles) {
+    try {
+      setStage("queued", `提交「${STYLE_CN[st]}」版本…`);
+      const task_id = await submitTask({ text, narrator: narratorSpk, dialect: narratorDialect, bgm: $("bgmToggle").checked, style: st });
+      versionList.push({ style: st, label: STYLE_CN[st], taskId: task_id, result: null, blobUrl: null, done: false, error: null, stage: "queued" });
+    } catch (e) {
+      versionList.push({ style: st, label: STYLE_CN[st], taskId: null, result: null, blobUrl: null, done: true, error: e.message, stage: "" });
+    }
+  }
+  const okCount = versionList.filter(v => v.taskId).length;
+  if (!okCount) { showError("所有版本提交均失败"); return; }
+
+  /* 并行轮询直至全部完成 */
+  for (;;) {
+    for (const v of versionList) {
+      if (v.done || !v.taskId) continue;
+      try {
+        const t = await fetch(`${API}/tasks/${v.taskId}`).then(r => r.json());
+        if (t.status === "done") {
+          v.done = true; v.result = t; v.stage = "";
+          v.blobUrl = await fetchAudioBytes(v.taskId);
+        } else if (t.status === "failed") {
+          v.done = true; v.error = t.error || "生成失败"; v.stage = "";
+        } else {
+          v.stage = t.stage; v.progressText = t.progress || "";
+        }
+      } catch { /* 网络抖动，下轮重试 */ }
+    }
+    const doneN = versionList.filter(v => v.done).length;
+    const stageSummary = versionList
+      .filter(v => !v.done && v.taskId)
+      .map(v => `${v.label} ${STAGE_CN[v.stage] || "进行中"}${v.stage === "synthesizing" ? " " + (v.progressText || "") : ""}`)
+      .join(" · ");
+    setStage("multi", `多版本进行中 ${doneN}/${versionList.length}${stageSummary ? "｜" + stageSummary : ""}`);
+    $("bar").firstElementChild.style.width = Math.max(8, doneN / versionList.length * 100) + "%";
+    if (versionList.every(v => v.done)) break;
+    await sleep(2500);
+  }
+
+  $("bar").classList.remove("pulse");
+  $("bar").firstElementChild.style.width = "100%";
+  const okVersions = versionList.filter(v => v.result);
+  if (!okVersions.length) { showError(versionList[0].error || "全部版本生成失败"); return; }
+  const failNote = versionList.filter(v => v.error).map(v => `${v.label}（${(v.error || "").slice(0, 40)}）`).join("、");
+  switchVersion(versionList.indexOf(okVersions[0]), true);
+  $("goBtn").disabled = false;
+  if (failNote) {
+    $("noticeBox").textContent = `部分版本失败：${failNote}`;
+    $("noticeBox").classList.add("on");
   }
 };
+
+/* 版本切换 */
+function switchVersion(idx, scroll) {
+  currentVersion = idx;
+  const v = versionList[idx];
+  lastResult = v.result;
+  lastTaskId = v.taskId;
+  if (audioBlobUrl) { /* 各版本 blobUrl 独立缓存，不互相 revoke */ }
+  audioBlobUrl = v.blobUrl;
+  renderVersionTabs();
+  render(v.result, !scroll);
+}
+
+function renderVersionTabs() {
+  const box = $("versionTabs");
+  if (versionList.filter(v => v.result).length < 2) { box.style.display = "none"; return; }
+  box.style.display = "flex";
+  box.innerHTML = versionList.map((v, i) => {
+    if (!v.result) return "";
+    return `<button class="version-tab${i === currentVersion ? " active" : ""}" data-i="${i}">
+      ${v.label}<span class="vt-dur">${fmt(v.result.duration_s)}</span></button>`;
+  }).join("");
+  box.querySelectorAll(".version-tab").forEach(btn => {
+    btn.onclick = () => switchVersion(+btn.dataset.i, false);
+  });
+}
+
+async function fetchAudioBytes(id) {
+  const res = await fetch(`${API}/tasks/${id}?audio=1`);
+  const t = await res.json();
+  return URL.createObjectURL(new Blob([Uint8Array.from(atob(t.audio_base64), c => c.charCodeAt(0))], { type: "audio/mpeg" }));
+}
 
 function setStage(stage, detail) {
   $("stageNow").textContent = STAGE_CN[stage] || stage;
@@ -713,6 +1201,8 @@ async function poll(id) {
       $("bar").firstElementChild.style.width = "100%";
       lastResult = t;
       lastTaskId = id;
+      currentVersion = -1;
+      versionList = [];
       await fetchAudio(id);
       render(t);
       $("goBtn").disabled = false;
@@ -746,27 +1236,28 @@ function showError(msg) {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /* ───────── 渲染结果 ───────── */
-function render(t) {
+function render(t, noScroll) {
   $("progressBlock").classList.remove("on");
   $("result").classList.add("on");
   const roles = [...new Set(t.segments.map(s => s.role))];
   $("resultMeta").textContent =
     `${t.segments.length} 段 · ${fmt(t.duration_s)} · 角色 ${roles.join("/")} · 配乐 ${t.bgm}`;
-  /* 全旁白时给出智能提示 */
+  /* 全旁白时给出智能提示（多版本切换时不重复提示） */
   const hasDialogue = roles.some(r => r !== "旁白");
   const looksLikeStory = /道[，。！？]|说道|吼道|喊道|问道|低声/.test($("textInput").value);
-  if (!hasDialogue && looksLikeStory) {
+  if (!hasDialogue && looksLikeStory && currentVersion < 0) {
     $("noticeBox").innerHTML =
-      "这篇文本没有识别出角色台词，全篇按旁白朗读了。若原文包含对话，建议将台词用中文引号 “ ” 包裹后重新生成，角色音色分配会更准确。";
+      "这篇文本没有识别出角色台词，全篇按旁白朗读了。若原文包含对话，建议将台词用中文引号 “ ” 或直角引号 「 」 包裹后重新生成，角色音色分配会更准确。";
     $("noticeBox").classList.add("on");
-  } else {
+  } else if (currentVersion < 0) {
     $("noticeBox").classList.remove("on");
   }
   renderPlayer();
   renderCurve(t.segments);
   renderLegend(t.segments);
   renderSegList(t.segments);
-  $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+  renderVersionTabs();
+  if (!noScroll) $("result").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 /* 播放器 */

@@ -25,6 +25,64 @@ MODEL = "glm-4-flash"
 
 VALID_EMOTIONS = {"neutral", "happy", "sad", "angry", "fearful", "surprised", "calm", "tense", "excited"}
 
+# ---- 「」直角引号救援（与 cloudrun/audiobook-api/app.py 保持同步） ----
+_QUOTE_SPLIT_RE = re.compile(r'(“[^”]*”|"[^"]*"|「[^」]*」|『[^』]*』)')
+_SAY_RE = re.compile(r'[曰道][：:]')   # 说话动词 + 冒号（X道：/X曰：）
+_TAIL_STRIP = set('都等皆齐们笑问答喝骂叹说叫唤呼吟诵念唱哭劝谏赞贺拜吩呏述回报奏禀启教命言云谈讲高声低厉连忙慌急拍呵哈拱躬叩抬低头转身前垂堕泪含陪堆喜恼愁动怒大礼首回')
+_BLACK_CHARS = set('的了着那这只有是便即却又就但见忽且还再不没未无亦须少正因故乃果其之于与而则若如被把在去来到从望向对一五十百千万亿个位名次朝早晚新旧大小多少高低上下东西南北中内外前后左右自相或此最彼他她它你你们我乎者也矣焉哉飞落起坐立睡卧醒醉游跳走行出入看听想心喜垂背')
+_WORD_BLACK = {'须臾', '少顷', '古云', '俗云', '常言', '古语', '正是', '忽然', '不觉', '当下',
+               '次日', '一日', '当日', '却说', '且说', '话说', '但见', '只见', '只听', '原来',
+               '自古', '心想', '暗想'}
+_PUNCT = '，。！？；：、“”「」『』〈〉《》（）() \n'
+
+
+def _valid_speaker(name):
+    """候选说话人校验：2-3 个汉字（纯汉字）、不在黑名单（词级/字级）"""
+    if name in _WORD_BLACK or not (2 <= len(name) <= 3):
+        return None
+    if not all('\u4e00' <= c <= '\u9fff' for c in name):
+        return None
+    if any(c in _BLACK_CHARS for c in name):
+        return None
+    return name
+
+
+def _speaker_before(pre: str):
+    """从引号前的叙述文本识别说话人（如「众猴把他围住，问道：」->众猴）；失败返回 None"""
+    m = None
+    for m in _SAY_RE.finditer(pre):
+        pass                                     # 取最后一个 道：/曰：
+    if m is None:
+        return None
+    head = pre[:m.start()]
+    # a) 邻接名：动词前紧贴的 2-3 字，剥离动词复合尾字，且前面须是标点/边界
+    tail = head.rstrip('，。！？；：、 \n')
+    while tail and tail[-1] in _TAIL_STRIP:
+        tail = tail[:-1]
+    for L in (3, 2):
+        if len(tail) >= L:
+            cand, rest = tail[-L:], tail[:-L]
+            if not rest or rest[-1] in _PUNCT:
+                v = _valid_speaker(cand)
+                if v:
+                    return v
+    # b) 回溯主语：动句所在子句及上一句的子句，从后向前找首个合法的 2-3 字开头
+    cands = []
+    sents = [s for s in re.split(r'[。！？；]', head) if s.strip()]
+    if sents:
+        for sent in [sents[-1]] + sents[-2:-1]:
+            for c in reversed([x for x in re.split(r'[，、：]', sent) if x.strip()]):
+                for L in (3, 2):
+                    lead = re.match(r'[\u4e00-\u9fa5]{%d}' % L, c.strip())
+                    if lead:
+                        cands.append(lead.group(0))
+    for cand in cands:
+        v = _valid_speaker(cand)
+        if v:
+            return v
+    return None
+
+
 PROMPT_TEMPLATE = """你是有声书情感分析师。分析下面的文本，把它切分为适合朗读的段落（每段不超过50个字，保持句子完整），并为每段标注朗读参数：
 - text: 该段原文内容
 - emotion: 情绪标签，只能从这些里选：neutral/happy/sad/angry/fearful/surprised/calm/tense/excited
@@ -46,6 +104,7 @@ PROMPT_TEMPLATE = """你是有声书情感分析师。分析下面的文本，�
  {"text":"林晚的手停在键盘上。","emotion":"fearful","intensity":0.5,"speed":0,"role":"旁白","gender":"unknown","emphasis":[]}]
 
 注意：许多中文文本的对话不加引号（如「这不可能……林晚喃喃道」「快离开！陈默吼道」）。遇到这种无引号的口语对话句，同样要依据说话人动词（说道/吼道/喃喃道/低声说等）、语气和上下文识别出台词并标注角色，不要因为缺少引号就归为旁白；但纯粹的叙述描写句仍然填"旁白"。
+引号类型：直角引号「」（古籍/繁体排版常见，如 石猴道：「大造化！」）与弯引号 “ ” 均可能出现，引号内的话都是台词，处理规则相同。「」内若再嵌套『』（如「他说：『花果山福地』」），引号内文字整体归角色，不必再拆。
 
 更多拆分示例——
 输入：「老周深深吸了一口气，对女孩说："到了。梧桐路，到了。慢点走。"」
@@ -142,44 +201,81 @@ def analyze(text: str) -> tuple[list | None, str]:
 
 def split_mixed_dialogue(segments: list) -> list:
     """
-    确定性兜底：
-    1) 非旁白段若含引号，按引号边界机械拆分——引号内归角色，引号外叙述归旁白，相邻同类合并；
-    2) 非旁白段无引号、无强烈语气标点（！？…）且较长（>=12字）——判定为第三人称叙述，回退旁白。
-    LLM 对「叙述+冒号台词」「引号夹心」句式偶尔偷懒不拆，此规则保证最终正确。
+    确定性兜底（三层），与 cloudrun/audiobook-api/app.py 保持同步：
+    1) 非旁白段若含引号，按引号边界机械拆分——引号内归角色，引号外叙述归旁白；
+    2) 旁白段内嵌的「X道：/X曰：+引号台词」按说话人救援拆出（识别不到可靠说话人则保持旁白）；
+    3) 非旁白段无引号、无强烈语气标点（！？…）且较长（>=12字）——判定为第三人称叙述回退旁白。
+    引号类型兼容 弯引号“”/直角引号「」『』/英文双引号。
     """
-    quotes = '“”"「」『』'
     result = []
     for seg in segments:
         text = seg["text"]
         if seg["role"] == "旁白":
-            result.append(seg)
+            result.extend(_rescue_narrator_quotes(seg))
             continue
         if seg["role"] in ("unknown", ""):
             seg = {**seg, "role": "旁白", "gender": "unknown"}
-        if not any(q in text for q in quotes):
+        if not any(q in text for q in '“”"「」『』'):
             if not any(p in text for p in '！？…') and len(text) >= 12:
                 result.append({**seg, "role": "旁白", "gender": "unknown"})
-                continue
-            result.append(seg)
+            else:
+                result.append(seg)
             continue
-        parts = re.split(r'(“[^”]*”|"[^"]*")', text)
-        pieces = []
+        parts = _QUOTE_SPLIT_RE.split(text)
         for p in parts:
             p = p.strip()
             if not p:
                 continue
-            if p[0] in '“"「' and p[-1] in '”"」':
-                pieces.append({**seg, "text": p})
+            if _QUOTE_SPLIT_RE.fullmatch(p):
+                result.append({**seg, "text": p})
             else:
-                pieces.append({**seg, "text": p, "role": "旁白", "gender": "unknown"})
-        for s in pieces:                                    # 相邻同角色合并
-            if result and result[-1]["role"] == s["role"] and s["role"] != "旁白":
-                result[-1]["text"] += s["text"]
-            elif result and result[-1]["role"] == "旁白" and s["role"] == "旁白":
-                result[-1]["text"] += s["text"]
+                result.append({**seg, "text": p, "role": "旁白", "gender": "unknown"})
+    # 同角色性别统一：LLM 标注优先，救援段回退（默认 male，古典文本主体为男性角色）
+    gmap = {}
+    for s in result:
+        if s["role"] != "旁白" and s.get("gender") in ("male", "female"):
+            gmap.setdefault(s["role"], s["gender"])
+    for s in result:
+        if s.pop("_rescued", None) and s["gender"] not in ("male", "female"):
+            s["gender"] = gmap.get(s["role"], "male")
+    return _merge_adjacent(result)
+
+
+def _merge_adjacent(segments: list) -> list:
+    """相邻同角色段合并（含相邻旁白）"""
+    merged = []
+    for s in segments:
+        if merged and merged[-1]["role"] == s["role"]:
+            merged[-1]["text"] += s["text"]
+        else:
+            merged.append(dict(s))
+    return merged
+
+
+def _rescue_narrator_quotes(seg: dict) -> list:
+    """旁白段：仅当内嵌「道：/曰：+引号」台词时按说话人救援拆分，否则原样保留"""
+    text = seg["text"]
+    if not any(q in text for q in '「」“”"'):
+        return [seg]
+    pieces = _QUOTE_SPLIT_RE.split(text)
+    if len(pieces) == 1:
+        return [seg]
+    out, pre_acc = [], ""
+    for p in pieces:
+        p = p.strip()
+        if not p:
+            continue
+        if _QUOTE_SPLIT_RE.fullmatch(p):
+            speaker = _speaker_before(pre_acc)
+            if speaker:
+                out.append({**seg, "text": p, "role": speaker,
+                            "gender": "male", "_rescued": True})
             else:
-                result.append(dict(s))
-    return result
+                out.append({**seg, "text": p})
+        else:
+            pre_acc += p
+            out.append({**seg, "text": p})
+    return out
 
 
 def main():

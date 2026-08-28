@@ -28,9 +28,10 @@ shengjuan/
 │   └── assets/bgm/         情绪曲库
 ├── web/                    前端
 │   ├── index.html          正式工作台（已部署公网）
+│   ├── lib/                内置公版书库（13 部古籍，CC0，简体，~3.5MB）
 │   └── prototypes/         功能原型页 ×3
-├── assets/bgm/             情绪曲库（本地副本）
-├── scripts/                工具脚本（合成/分析/流水线/音色）
+├── assets/bgm/             情绪曲库（本地副本，程序化合成，make_bgm_v2.py 可重生）
+├── scripts/                工具脚本（合成/分析/流水线/音色/书库构建/测试）
 └── docs/                   技术方案
 ```
 
@@ -62,6 +63,28 @@ python scripts/pipeline.py --input story.txt -o final.mp3 --narrator S_xxxxx
 | 前端 | CloudBase 静态托管 | https://shengjuan-sm-20252354-d0gugy5fq52b8b895.webapps.tcloudbase.com |
 
 密钥通过云托管环境变量注入（VOLC_API_KEY / GLM_API_KEY / MINIMAX_API_KEY），不入库不入镜像。
+
+## 功能特性
+
+- **情绪曲线编辑器**：段落级情绪强度可拖拽调整，增量重合成单段后重混音整篇
+- **多角色分饰**：GLM 标注角色 + 性别 → 声池自动分配，同角色全篇锁定同一音色
+- **引号兼容**：弯引号 “” / 直角引号 「」 / 嵌套 『』 全兼容；旁白段内嵌「X道：」台词自动救援拆出
+- **自定义音色**：MiniMax Voice Design（文本描述造音色）+ 豆包声音复刻 2.0（录音克隆）
+- **方言通道**：豆包四大多方言母音色 × explicit_dialect，支持川/粤/东北/京/沪等 8 方言
+- **内置书库**：13 部公版古籍（西游记全本 100 回 / 论语 / 庄子 / 诗经 / 韩非子…，CC0 协议，简体，国内 CDN 直连）
+- **一键多版本**：正常 / 慢速 / 双语（中英交替）/ 预告片（情绪拉满 + 强制紧张配乐）
+- **长文支持**：单次上限 10000 字，分块分析（1200 字/块，跨块同名角色声线一致）
+- **BGM 智能匹配**：程序化合成八音盒风格曲库（neutral/calm/sad/happy/tense），ducking 混音 + 响度归一
+
+## 测试
+
+```bash
+# 「」直角引号拆分单元测试（16 用例，含众猴道/玉帝曰/诗曰/嵌套『』等边界）
+python scripts/test_corner_quotes.py
+
+# 真实 GLM 端到端测试（西游记第一回节选，需 .env 配 GLM_API_KEY）
+python scripts/test_xyj_glm.py
+```
 
 ## 数据库
 

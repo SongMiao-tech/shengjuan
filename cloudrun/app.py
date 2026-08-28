@@ -65,6 +65,7 @@ PROMPT = """你是有声书情感分析师。分析下面的文本，把它切�
  {"text":"林晚的手停在键盘上。","emotion":"fearful","intensity":0.5,"speed":0,"role":"旁白","gender":"unknown","emphasis":[]}]
 
 注意：许多中文文本的对话不加引号（如「这不可能……林晚喃喃道」「快离开！陈默吼道」）。遇到这种无引号的口语对话句，同样要依据说话人动词（说道/吼道/喃喃道/低声说等）、语气和上下文识别出台词并标注角色，不要因为缺少引号就归为旁白；但纯粹的叙述描写句仍然填"旁白"。
+引号类型：直角引号「」（古籍/繁体排版常见，如 石猴道：「大造化！」）与弯引号 “ ” 均可能出现，引号内的话都是台词，处理规则相同。「」内若再嵌套『』（如「他说：『花果山福地』」），引号内文字整体归角色，不必再拆。
 
 更多拆分示例——
 输入：「老周深深吸了一口气，对女孩说："到了。梧桐路，到了。慢点走。"」
@@ -112,50 +113,170 @@ def log(msg: str) -> None:
 
 
 # ---------- 确定性拆分兜底 ----------
+_QUOTE_SPLIT_RE = re.compile(r'(“[^”]*”|"[^"]*"|「[^」]*」|『[^』]*』)')
+_SAY_RE = re.compile(r'[曰道][：:]')   # 说话动词 + 冒号（X道：/X曰：）
+# 邻接名后可剥离的动词/修饰尾字（笑道/问道/回报道/呵呵道…的动词部分）
+_TAIL_STRIP = set('都等皆齐们笑问答喝骂叹说叫唤呼吟诵念唱哭劝谏赞贺拜吩呏述回报奏禀启教命言云谈讲高声低厉连忙慌急拍呵哈拱躬叩抬低头转身前垂堕泪含陪堆喜恼愁动怒大礼首回')
+# 说话人候选名中不允许出现的字（虚词/数词/动作字，用于排除叙述性主语）
+_BLACK_CHARS = set('的了着那这只有是便即却又就但见忽且还再不没未无亦须少正因故乃果其之于与而则若如被把在去来到从望向对一五十百千万亿个位名次朝早晚新旧大小多少高低上下东西南北中内外前后左右自相或此最彼他她它你你们我乎者也矣焉哉飞落起坐立睡卧醒醉游跳走行出入看听想心喜垂背')
+_WORD_BLACK = {'须臾', '少顷', '古云', '俗云', '常言', '古语', '正是', '忽然', '不觉', '当下',
+               '次日', '一日', '当日', '却说', '且说', '话说', '但见', '只见', '只听', '原来',
+               '自古', '心想', '暗想'}
+_PUNCT = '，。！？；：、“”「」『』〈〉《》（）() \n'
+
+
+def _valid_speaker(name):
+    """候选说话人校验：2-3 个汉字（纯汉字）、不在黑名单（词级/字级）"""
+    if name in _WORD_BLACK or not (2 <= len(name) <= 3):
+        return None
+    if not all('\u4e00' <= c <= '\u9fff' for c in name):
+        return None
+    if any(c in _BLACK_CHARS for c in name):
+        return None
+    return name
+
+
+def _speaker_before(pre: str):
+    """从引号前的叙述文本识别说话人（如「众猴把他围住，问道：」->众猴）；失败返回 None"""
+    m = None
+    for m in _SAY_RE.finditer(pre):
+        pass                                     # 取最后一个 道：/曰：
+    if m is None:
+        return None
+    head = pre[:m.start()]
+    # a) 邻接名：动词前紧贴的 2-3 字，剥离动词复合尾字，且前面须是标点/边界
+    tail = head.rstrip('，。！？；：、 \n')
+    while tail and tail[-1] in _TAIL_STRIP:
+        tail = tail[:-1]
+    for L in (3, 2):
+        if len(tail) >= L:
+            cand, rest = tail[-L:], tail[:-L]
+            if not rest or rest[-1] in _PUNCT:
+                v = _valid_speaker(cand)
+                if v:
+                    return v
+    # b) 回溯主语：动句所在子句及上一句的子句，从后向前找首个合法的 2-3 字开头
+    cands = []
+    sents = [s for s in re.split(r'[。！？；]', head) if s.strip()]
+    if sents:
+        for sent in [sents[-1]] + sents[-2:-1]:
+            for c in reversed([x for x in re.split(r'[，、：]', sent) if x.strip()]):
+                for L in (3, 2):
+                    lead = re.match(r'[\u4e00-\u9fa5]{%d}' % L, c.strip())
+                    if lead:
+                        cands.append(lead.group(0))
+    for cand in cands:
+        v = _valid_speaker(cand)
+        if v:
+            return v
+    return None
+
+
+def _merge_adjacent(segments: list) -> list:
+    """相邻同角色段合并（含相邻旁白）"""
+    merged = []
+    for s in segments:
+        if merged and merged[-1]["role"] == s["role"]:
+            merged[-1]["text"] += s["text"]
+        else:
+            merged.append(dict(s))
+    return merged
+
+
 def split_mixed_dialogue(segments: list) -> list:
     """
-    确定性兜底：
-    1) 非旁白段若含引号，按引号边界机械拆分——引号内归角色，引号外叙述归旁白，相邻同类合并；
-    2) 非旁白段无引号、无强烈语气标点（！？…）且较长（>=12字）——判定为第三人称叙述，回退旁白。
-    LLM 对「叙述+冒号台词」「引号夹心」句式偶尔偷懒不拆，此规则保证最终正确。
+    确定性兜底（三层）：
+    1) 非旁白段若含引号，按引号边界机械拆分——引号内归角色，引号外叙述归旁白；
+    2) 旁白段内嵌的「X道：/X曰：+引号台词」按说话人救援拆出（识别不到可靠说话人则保持旁白，
+       诗曰/赋曰/古云等引经据典不会被误判）；
+    3) 非旁白段无引号、无强烈语气标点（！？…）且较长（>=12字）——判定为第三人称叙述回退旁白。
+    引号类型兼容 弯引号“”/直角引号「」『』/英文双引号。
     """
-    quotes = '“”"「」『』'
     result = []
     for seg in segments:
         text = seg["text"]
         if seg["role"] == "旁白":
-            result.append(seg)
+            # 旁白段：仅当内嵌「道：/曰：+引号」台词时救援拆分
+            pieces = _QUOTE_SPLIT_RE.split(text) if any(q in text for q in '「」“”"') else [text]
+            if len(pieces) == 1:
+                result.append(seg)
+                continue
+            pre_acc = ""
+            for p in pieces:
+                p = p.strip()
+                if not p:
+                    continue
+                if _QUOTE_SPLIT_RE.fullmatch(p):
+                    speaker = _speaker_before(pre_acc)
+                    if speaker:
+                        result.append({**seg, "text": p, "role": speaker,
+                                       "gender": "male", "_rescued": True})
+                    else:
+                        result.append({**seg, "text": p})
+                else:
+                    pre_acc += p
+                    result.append({**seg, "text": p})
             continue
         if seg["role"] in ("unknown", ""):
             seg = {**seg, "role": "旁白", "gender": "unknown"}
-        if not any(q in text for q in quotes):
+        if not any(q in text for q in '“”"「」『』'):
             if not any(p in text for p in '！？…') and len(text) >= 12:
                 result.append({**seg, "role": "旁白", "gender": "unknown"})
-                continue
-            result.append(seg)
+            else:
+                result.append(seg)
             continue
-        parts = re.split(r'(“[^”]*”|"[^"]*")', text)
-        pieces = []
+        parts = _QUOTE_SPLIT_RE.split(text)
         for p in parts:
             p = p.strip()
             if not p:
                 continue
-            if p[0] in '“"「' and p[-1] in '”"」':
-                pieces.append({**seg, "text": p})
+            if _QUOTE_SPLIT_RE.fullmatch(p):
+                result.append({**seg, "text": p})
             else:
-                pieces.append({**seg, "text": p, "role": "旁白", "gender": "unknown"})
-        for s in pieces:                                    # 相邻同角色合并
-            if result and result[-1]["role"] == s["role"] and s["role"] != "旁白":
-                result[-1]["text"] += s["text"]
-            elif result and result[-1]["role"] == "旁白" and s["role"] == "旁白":
-                result[-1]["text"] += s["text"]
-            else:
-                result.append(dict(s))
-    return result
+                result.append({**seg, "text": p, "role": "旁白", "gender": "unknown"})
+    # 同角色性别统一：LLM 标注优先，救援段回退（默认 male，古典文本主体为男性角色）
+    gmap = {}
+    for s in result:
+        if s["role"] != "旁白" and s.get("gender") in ("male", "female"):
+            gmap.setdefault(s["role"], s["gender"])
+    for s in result:
+        if s.pop("_rescued", None) and s["gender"] not in ("male", "female"):
+            s["gender"] = gmap.get(s["role"], "male")
+    return _merge_adjacent(result)
 
 
 # ---------- GLM 情感分析 ----------
+USAGE_FILE = Path("/tmp/audiobook_usage.json")   # 单实例部署：计数落盘防重启丢失
+
+def _load_usage() -> dict:
+    base = {"tasks": 0, "chars_tts": 0, "llm_calls": 0, "cache_hits": 0,
+            "clones": 0, "designs": 0, "previews": 0}
+    try:
+        base.update(json.loads(USAGE_FILE.read_text(encoding="utf-8")))
+    except Exception:  # noqa: BLE001
+        pass
+    return base
+
+USAGE = _load_usage()
+
+def bump(key: str, n: int = 1):
+    USAGE[key] = USAGE.get(key, 0) + n
+    try:
+        USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        USAGE_FILE.write_text(json.dumps(USAGE), encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
+
+ANALYSIS_CACHE = {}        # sha256(text) -> segments（同文本缓存，命中跳过 GLM 调用）
+
 def analyze(text: str):
+    import hashlib
+    key = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    if key in ANALYSIS_CACHE:
+        bump("cache_hits")
+        log("[glm] 同文本缓存命中，跳过 LLM 调用")
+        return json.loads(json.dumps(ANALYSIS_CACHE[key], ensure_ascii=False))   # 深拷贝
+    bump("llm_calls")
     body = {"model": "glm-4-flash",
             "messages": [{"role": "user", "content": PROMPT.replace('__TEXT__', text)}],
             "temperature": 0.2}
@@ -163,7 +284,7 @@ def analyze(text: str):
     content = None
     for attempt in range(3):
         try:
-            r = requests.post(GLM_URL, headers=headers, json=body, timeout=150)
+            r = requests.post(GLM_URL, headers=headers, json=body, timeout=300)
             if r.status_code != 200:
                 raise RuntimeError(f"GLM HTTP {r.status_code}: {r.text[:200]}")
             content = r.json()["choices"][0]["message"]["content"]
@@ -197,15 +318,98 @@ def analyze(text: str):
             seg["role"] = "旁白"
             seg["gender"] = "unknown"
     out = split_mixed_dialogue(out)
+    if len(ANALYSIS_CACHE) > 200:               # 简单上限防内存膨胀
+        ANALYSIS_CACHE.clear()
+    ANALYSIS_CACHE[key] = out
     return out
 
 
+TRANS_PROMPT = """你是有声书中英双语译配师。把下面的中文段落数组逐段翻译成适合朗读的英文（简洁、口语化、保留原文语气）。
+输入是一个 JSON 字符串数组。只输出等长的 JSON 字符串数组（每元素为对应段落的英文翻译），不要任何解释、markdown 标记或其他文字。
+段落数组：
+__TEXT__
+
+"""
+
+def split_chunks(text: str, limit: int = 1200) -> list:
+    """按段落边界切分长文本，每块 <= limit 字；单段超限时按句号硬切。
+    块越小 GLM 输出 JSON 越短越稳（长输出会超时/截断）。"""
+    if len(text) <= limit:
+        return [text]
+    chunks, cur = [], ""
+    for p in text.split("\n\n"):
+        if cur and len(cur) + len(p) + 2 > limit:
+            chunks.append(cur)
+            cur = p
+        else:
+            cur = f"{cur}\n\n{p}" if cur else p
+        while len(cur) > limit:                    # 单段超限兜底
+            cut = cur.rfind("。", 0, limit)
+            cut = cut + 1 if cut > 0 else limit
+            chunks.append(cur[:cut])
+            cur = cur[cut:]
+    if cur.strip():
+        chunks.append(cur)
+    return chunks
+
+
+def analyze_long(text: str):
+    """长文分块分析：每块独立过 GLM（分块缓存生效），合并结果。
+    角色音色在合并后统一分配，跨块的同名角色声线保持一致。"""
+    if len(text) <= 1200:
+        return analyze(text)
+    chunks = split_chunks(text)
+    log(f"[glm] 长文分块：{len(text)} 字 -> {len(chunks)} 块")
+    out = []
+    for i, c in enumerate(chunks):
+        log(f"[glm] 分析块 {i+1}/{len(chunks)}（{len(c)} 字）")
+        out.extend(analyze(c))
+    return out
+
+def translate_segments(segments: list) -> list:
+    """GLM 逐段翻译为英文；失败时返回 [None]*n（双语版降级为纯中文）"""
+    texts = [s["text"] for s in segments]
+    body = {"model": "glm-4-flash",
+            "messages": [{"role": "user", "content": TRANS_PROMPT.replace("__TEXT__", json.dumps(texts, ensure_ascii=False))}],
+            "temperature": 0.3}
+    headers = {"Authorization": f"Bearer {os.environ['GLM_API_KEY']}", "Content-Type": "application/json"}
+    content = None
+    for attempt in range(3):
+        try:
+            r = requests.post(GLM_URL, headers=headers, json=body, timeout=120)
+            if r.status_code != 200:
+                raise RuntimeError(f"GLM HTTP {r.status_code}: {r.text[:150]}")
+            content = r.json()["choices"][0]["message"]["content"]
+            break
+        except Exception as e:  # noqa: BLE001
+            log(f"[translate retry {attempt+1}] {e}")
+            time.sleep(2 * (attempt + 1))
+    if content is None:
+        log("[translate] 翻译失败，双语版降级为纯中文")
+        return [None] * len(texts)
+    m = _re.search(r"\[.*\]", content, _re.DOTALL)
+    if not m:
+        return [None] * len(texts)
+    try:
+        en = json.loads(m.group(0))
+    except Exception:  # noqa: BLE001
+        return [None] * len(texts)
+    if not isinstance(en, list) or len(en) != len(texts):
+        return [None] * len(texts)
+    return [str(x).strip() if x else None for x in en]
+
+
 # ---------- 豆包 TTS ----------
-def tts(text: str, speaker: str, out_path: Path, emotion=None, scale=4, speed=0):
+def tts(text: str, speaker: str, out_path: Path, emotion=None, scale=4, speed=0, dialect: str | None = None):
     body = {"user": {"uid": "audiobook-cloud"},
             "req_params": {"text": text, "speaker": speaker,
                            "audio_params": {"format": "mp3", "sample_rate": 24000,
                                             "speech_rate": speed}}}
+    if emotion:
+        body["req_params"]["audio_params"]["emotion"] = emotion
+        body["req_params"]["audio_params"]["emotion_scale"] = scale
+    if dialect:   # 方言通道：仅支持方言的音色（vv/小何/云舟/小天）生效；additions 须为 JSON 字符串
+        body["req_params"]["additions"] = json.dumps({"explicit_dialect": dialect})
     if emotion:
         body["req_params"]["audio_params"]["emotion"] = emotion
         body["req_params"]["audio_params"]["emotion_scale"] = scale
@@ -253,6 +457,7 @@ def minimax_design(prompt: str, preview_text: str):
     voice_id = obj.get("voice_id")
     if not voice_id:
         raise RuntimeError("设计接口未返回 voice_id")
+    bump("designs")
     preview = minimax_tts_bytes(preview_text, voice_id)   # 激活并出试听
     return voice_id, base64.b64encode(preview).decode("ascii")
 
@@ -316,39 +521,78 @@ def pick_bgm(segments) -> str:
 
 
 # ---------- 流水线 ----------
-def run_pipeline(task_id: str, text: str, narrator: str, use_bgm: bool):
+def run_pipeline(task_id: str, text: str, narrator: str, use_bgm: bool, dialect: str | None = None, style: str = "normal"):
     t = TASKS[task_id]
+    t["dialect"] = dialect or ""
+    t["style"] = style
     d = WORK / task_id
     d.mkdir(parents=True, exist_ok=True)
+    pause = 0.28          # 段间停顿
+    force_bgm = None      # 强制配乐（预告片版用）
     try:
         t["stage"] = "analyzing"
-        segments = analyze(text)
+        segments = analyze_long(text)
+
+        # ---- 风格变换（一键多版本输出的核心差异） ----
+        if style == "slow":                       # 慢速版：降语速 + 拉长停顿
+            for seg in segments:
+                seg["speed"] = max(-30, seg["speed"] - 20)
+            pause = 0.55
+        elif style == "trailer":                  # 预告片版：情绪拉满 + 加速 + 强制紧张配乐
+            for seg in segments:
+                seg["intensity"] = max(seg["intensity"], 0.85)
+                seg["speed"] = min(30, seg["speed"] + 10)
+            pause = 0.45
+            force_bgm = "tense.mp3"
+        elif style == "bilingual":                # 双语版：中文段落 + 英文朗读交替
+            t["stage"] = "translating"
+            en_list = translate_segments(segments)
+            inter = []
+            for seg, en in zip(segments, en_list):
+                inter.append(seg)
+                if en:
+                    inter.append({"text": en, "emotion": seg["emotion"],
+                                  "intensity": round(seg["intensity"] * 0.6, 2),
+                                  "speed": 0, "role": "English", "gender": "unknown", "en": True})
+            segments = inter
+
         t["segments"] = segments
-        log(f"[{task_id}] {len(segments)} 段")
+        log(f"[{task_id}] {len(segments)} 段 dialect={dialect} style={style}")
 
         t["stage"] = "synthesizing"
         role_map = assign_speakers(segments, narrator)
         log(f"[{task_id}] role_map={role_map}")
+        en_voice = os.environ.get("EN_TTS_VOICE", "").strip() or "en_male_tim_uranus_bigtts"
         parts = []
         for i, seg in enumerate(segments):
-            speaker = seg["speaker"]
-            emo = EMOTION_MAP.get(seg["emotion"])
-            if seg["emotion"] in ("neutral", "calm"):
+            if seg.get("en"):
+                speaker = en_voice                # 英文段落用英语母声音色
                 emo = None
-            scale = max(1, min(5, round(1 + seg["intensity"] * 4)))
+                scale = 3
+                seg_speed = 0
+            else:
+                speaker = seg["speaker"]
+                emo = EMOTION_MAP.get(seg["emotion"])
+                if seg["emotion"] in ("neutral", "calm"):
+                    emo = None
+                scale = max(1, min(5, round(1 + seg["intensity"] * 4)))
+                seg_speed = seg["speed"]
             seg_path = d / f"seg_{i:03d}.mp3"
             try:
-                synth_dispatch(seg["text"], speaker, seg_path, emotion=emo, scale=scale, speed=seg["speed"])
+                synth_dispatch(seg["text"], speaker, seg_path, emotion=emo, scale=scale, speed=seg_speed, dialect=dialect)
             except Exception:  # 回退中性
-                synth_dispatch(seg["text"], speaker, seg_path)
+                synth_dispatch(seg["text"], speaker, seg_path, dialect=dialect)
             parts.append(seg_path)
+            bump("chars_tts", len(seg["text"]))
             t["progress"] = f"{i+1}/{len(segments)}"
 
         t["stage"] = "mixing"
         t["part_files"] = [str(p) for p in parts]     # 供段落级调整后重混音
-        audio_b, dur = mix_task(d, parts, use_bgm)
+        audio_b, dur = mix_task(d, parts, use_bgm, pause=pause)
         out = d / "final.mp3"
         bgm = pick_bgm(segments) if use_bgm else ""
+        if style == "trailer" and use_bgm and bgm:    # 预告片版强制紧张曲
+            bgm = "tense.mp3"
         out.write_bytes(audio_b)
 
         t["status"] = "done"
@@ -362,11 +606,11 @@ def run_pipeline(task_id: str, text: str, narrator: str, use_bgm: bool):
         log(f"[{task_id}] FAILED: {e}")
 
 
-def mix_task(d: Path, parts: list, use_bgm: bool):
+def mix_task(d: Path, parts: list, use_bgm: bool, pause: float = 0.28):
     """拼接段落 + BGM 匹配 ducking 混音 + 响度归一 -> (bytes, duration_s)"""
-    sil = d / "sil.mp3"
+    sil = d / f"sil_{pause}.mp3"
     if not sil.exists():
-        ff(["-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", "0.28", "-b:a", "128k", str(sil)])
+        ff(["-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", str(pause), "-b:a", "128k", str(sil)])
     lst = d / "concat.txt"
     lines = []
     for p in parts:
@@ -395,7 +639,217 @@ def mix_task(d: Path, parts: list, use_bgm: bool):
 # ---------- 路由 ----------
 @APP.get("/health")
 def health():
-    return jsonify({"ok": True, "service": "audiobook-api"})
+    return jsonify({"ok": True, "service": "audiobook-api", "usage": USAGE})
+
+
+# ---------- 公版书导入（维基文库中转） ----------
+import html as _html
+import re as _re
+import urllib.parse
+import urllib.request
+
+WIKI_API = "https://zh.wikisource.org/w/api.php"
+
+
+def _fetch_json(url: str, timeout: float) -> dict:
+    req = urllib.request.Request(url, headers={"User-Agent": "ShengJuan-Audiobook/1.0 (public-domain reader demo)"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        body = r.read().decode("utf-8", errors="replace")
+    # jina Reader 会在 JSON 前加 Markdown 头，从第一个 { 截取
+    return json.loads(body[body.index("{"):])
+
+
+def _wiki_get(params: dict):
+    """维基文库 API 请求，镜像链依次尝试，返回 (data, via)。国内云直连维基媒体被墙，
+    优先走可达的公共镜像/代理。corsproxy.io 需在环境变量 CORSPROXY_KEY 配置 key（国内云唯一可达）。"""
+    qs = urllib.parse.urlencode({**params, "format": "json", "formatversion": 2})
+    target = f"{WIKI_API}?{qs}"
+    qe = urllib.parse.quote(target, safe="")
+    chain = []
+    cp_key = os.environ.get("CORSPROXY_KEY", "").strip()
+    if cp_key:
+        chain.append(("corsproxy", f"https://corsproxy.io/?url={qe}&key={cp_key}", 15))
+    chain += [
+        ("jina",    f"https://r.jina.ai/{target}",            20),
+        ("codetabs", f"https://api.codetabs.com/v1/proxy?quest={qe}", 10),
+        ("allorigins", f"https://api.allorigins.win/raw?url={qe}", 15),
+        ("direct",  target, 6),
+    ]
+    last_err = None
+    for via, url, to in chain:
+        try:
+            return _fetch_json(url, to), via
+        except Exception as e:  # noqa: BLE001
+            last_err = f"{via}: {e}"
+            continue
+    raise RuntimeError(f"全部镜像通道失败（{last_err}）")
+
+
+def _clean_wiki_html(raw: str) -> str:
+    """维基文库页面 HTML -> 纯文本段落"""
+    raw = _re.sub(r"<(style|script)[^>]*>.*?</\1>", "", raw, flags=_re.DOTALL)
+    raw = _re.sub(r"<(table|sup)[^>]*>.*?</(table|sup)>", "", raw, flags=_re.DOTALL)  # 版式横幅/脚注
+    raw = _re.sub(r"</(p|div|li|h[1-6]|br)>", "\n", raw)
+    raw = _re.sub(r"<br\s*/?>", "\n", raw)
+    raw = _re.sub(r"<[^>]+>", "", raw)
+    raw = _html.unescape(raw)
+    paras = [p.strip() for p in raw.split("\n")]
+    paras = [p for p in paras if p and not _re.fullmatch(r"[\s·|()\[\]（）「」←→-]+", p)]
+    return "\n\n".join(paras)
+
+
+@APP.get("/books/diag")
+def books_diag():
+    """诊断模式一（默认）：逐条探测维基文库镜像链。
+    诊断模式二（?probe=hosts）：普查国内可达的公版文本源站。"""
+    if request.args.get("probe") == "hosts":
+        hosts = [
+            ("gushiwen", "https://so.gushiwen.cn/search.aspx?type=title&value=%E8%B5%A4%E5%A3%81%E8%B3%A6"),
+            ("zdic", "https://www.zdic.net/"),
+            ("ctext_api", "https://api.ctext.org/gettext?urn=ctp:analects/xue-er"),
+            ("ctext_www", "https://ctext.org/"),
+            ("gitee", "https://gitee.com/explore"),
+            ("gitee_raw", "https://gitee.com/explore/raw/master/README.md"),
+            ("npmmirror", "https://registry.npmmirror.com/chinese-poetry/latest"),
+            ("hf_mirror", "https://hf-mirror.com/"),
+            ("jsdelivr", "https://cdn.jsdelivr.net/"),
+            ("wikisource", "https://zh.wikisource.org/w/api.php?action=query&meta=siteinfo&format=json"),
+        ]
+        out = []
+        for via, url in hosts:
+            t0 = time.time()
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 ShengJuan/1.0"})
+                with urllib.request.urlopen(req, timeout=8) as r:
+                    status = r.status
+                out.append({"via": via, "ok": 200 <= status < 400, "ms": int((time.time() - t0) * 1000),
+                            "status": status})
+            except urllib.error.HTTPError as e:
+                out.append({"via": via, "ok": False, "ms": int((time.time() - t0) * 1000), "status": e.code})
+            except Exception as e:  # noqa: BLE001
+                out.append({"via": via, "ok": False, "ms": int((time.time() - t0) * 1000),
+                            "err": str(e)[:60]})
+        return jsonify({"probe": "hosts", "diag": out})
+
+    # 默认：维基文库镜像链探测
+    probe = {"action": "query", "meta": "siteinfo", "srlimit": 1}
+    qs = urllib.parse.urlencode({**probe, "format": "json", "formatversion": 2})
+    target = f"{WIKI_API}?{qs}"
+    qe = urllib.parse.quote(target, safe="")
+    chain = []
+    cp_key = os.environ.get("CORSPROXY_KEY", "").strip()
+    if cp_key:
+        chain.append(("corsproxy", f"https://corsproxy.io/?url={qe}&key={cp_key}"))
+    chain += [
+        ("jina", f"https://r.jina.ai/{target}"),
+        ("codetabs", f"https://api.codetabs.com/v1/proxy?quest={qe}"),
+        ("allorigins", f"https://api.allorigins.win/raw?url={qe}"),
+        ("direct", target),
+    ]
+    out = []
+    for via, url in chain:
+        t0 = time.time()
+        try:
+            _fetch_json(url, 6)
+            out.append({"via": via, "ok": True, "ms": int((time.time() - t0) * 1000)})
+        except Exception as e:  # noqa: BLE001
+            out.append({"via": via, "ok": False, "ms": int((time.time() - t0) * 1000),
+                        "err": str(e)[:80]})
+    return jsonify({"diag": out})
+
+
+@APP.get("/books/search")
+def books_search():
+    """维基文库全文检索（公有领域文本源）"""
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return jsonify({"error": "q required"}), 400
+    try:
+        data, via = _wiki_get({"action": "query", "list": "search", "srsearch": q,
+                               "srlimit": 8, "srprop": "snippet|wordcount"})
+        hits = [{"title": it["title"],
+                 "snippet": _re.sub(r"<[^>]+>", "", it.get("snippet", "")),
+                 "words": it.get("wordcount", 0)}
+                for it in data.get("query", {}).get("search", [])]
+        return jsonify({"results": hits, "via": via})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"文库检索失败: {e}"}), 502
+
+
+@APP.get("/books/fetch")
+def books_fetch():
+    """按页面标题拉取维基文库正文，清洗为纯文本"""
+    title = (request.args.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "title required"}), 400
+    try:
+        data, via = _wiki_get({"action": "parse", "page": title, "prop": "text"})
+        page = data.get("parse", {})
+        text = _clean_wiki_html(page.get("text", ""))
+        if len(text) < 100:
+            return jsonify({"error": "该页面疑似目录页或内容过短，请尝试具体章节页（如「三國演義/第一回」）"}), 422
+        return jsonify({"title": page.get("title", title), "text": text, "chars": len(text), "via": via})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"正文拉取失败: {e}"}), 502
+
+
+@APP.get("/books/ctext/search")
+def ctext_search():
+    """ctext（中国哲学书电子化计划）搜书——官方 API，内容公有领域，腾讯云直连可达。
+    searchtexts 免 key；remap=gb 输出简体。"""
+    title = (request.args.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "title required"}), 400
+    try:
+        qs = urllib.parse.urlencode({"if": "zh", "remap": "gb", "title": title})
+        req = urllib.request.Request(f"https://api.ctext.org/searchtexts?{qs}",
+                                     headers={"User-Agent": "ShengJuan-Audiobook/1.0"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        results = [{"title": b.get("title", ""), "urn": b.get("urn", "")}
+                   for b in data.get("books", []) if b.get("urn")]
+        return jsonify({"results": results})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"ctext 检索失败: {e}"}), 502
+
+
+@APP.get("/books/ctext/fetch")
+def ctext_fetch():
+    """按 urn 拉取 ctext 正文（gettext 需 API key：环境变量 CTEXT_API_KEY）"""
+    urn = (request.args.get("urn") or "").strip()
+    if not urn:
+        return jsonify({"error": "urn required"}), 400
+    key = os.environ.get("CTEXT_API_KEY", "").strip()
+    if not key:
+        return jsonify({"error": "KEY_REQUIRED"}), 428
+    try:
+        qs = urllib.parse.urlencode({"if": "zh", "remap": "gb", "urn": urn, "apikey": key})
+        req = urllib.request.Request(f"https://api.ctext.org/gettext?{qs}",
+                                     headers={"User-Agent": "ShengJuan-Audiobook/1.0"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        if "error" in data:
+            code = data["error"].get("code", "")
+            msg = {"ERR_REQUIRES_AUTHENTICATION": "ctext key 无效或额度用尽",
+                   "ERR_NON_EXISTING_URN": "urn 不存在"}.get(code, data["error"].get("description", code))
+            return jsonify({"error": msg}), 502
+        # gettext 返回结构兼容多种字段
+        passages = data.get("passages") or []
+        parts = []
+        for p in passages:
+            if isinstance(p, dict):
+                t = p.get("utf8") or p.get("text") or ""
+            else:
+                t = str(p)
+            t = t.strip()
+            if t:
+                parts.append(t)
+        text = "\n\n".join(parts) if parts else (data.get("fulltext") or "").strip()
+        if len(text) < 10:
+            return jsonify({"error": "该 urn 内容为空或为目录层级，请选择具体章节"}), 422
+        return jsonify({"title": data.get("title", urn), "text": text, "chars": len(text)})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"ctext 拉取失败: {e}"}), 502
 
 
 @APP.post("/tasks")
@@ -404,14 +858,19 @@ def create_task():
     text = (data.get("text") or "").strip()
     if not text:
         return jsonify({"error": "text required"}), 400
-    if len(text) > 5000:
-        return jsonify({"error": "text too long (max 5000)"}), 400
+    if len(text) > 10000:
+        return jsonify({"error": "text too long (max 10000)"}), 400
     narrator = data.get("narrator") or DEFAULT_NARRATOR
     use_bgm = bool(data.get("bgm", True))
+    dialect = (data.get("dialect") or "").strip() or None   # 方言通道：sichuan/yue/dongbei/beijing/shanghai/henan/shaanxi/tianjin
+    style = (data.get("style") or "normal").strip().lower()
+    if style not in ("normal", "slow", "trailer", "bilingual"):
+        style = "normal"
     task_id = uuid.uuid4().hex[:12]
     TASKS[task_id] = {"status": "running", "stage": "queued", "progress": "0",
                       "segments": None, "audio_base64": None, "error": None}
-    threading.Thread(target=run_pipeline, args=(task_id, text, narrator, use_bgm), daemon=True).start()
+    bump("tasks")
+    threading.Thread(target=run_pipeline, args=(task_id, text, narrator, use_bgm, dialect, style), daemon=True).start()
     return jsonify({"task_id": task_id})
 
 
@@ -427,12 +886,12 @@ def get_task(task_id: str):
     return jsonify(resp)
 
 
-def synth_dispatch(text: str, speaker: str, out_path: Path, emotion=None, scale=4, speed=0):
-    """按音色类型分发：ttv-voice -> MiniMax；其余 -> 豆包"""
+def synth_dispatch(text: str, speaker: str, out_path: Path, emotion=None, scale=4, speed=0, dialect: str | None = None):
+    """按音色类型分发：ttv-voice -> MiniMax；其余 -> 豆包（可带方言参数）"""
     if speaker.startswith("ttv-voice"):
         out_path.write_bytes(minimax_tts_bytes(text, speaker))
         return
-    tts(text, speaker, out_path, emotion=emotion, scale=scale, speed=speed)
+    tts(text, speaker, out_path, emotion=emotion, scale=scale, speed=speed, dialect=dialect)
 
 
 # ---------- 音色接口 ----------
@@ -440,16 +899,18 @@ PREVIEW_TEXT = "你好，我是你的朗读者，很高兴用声音为你讲述�
 
 @APP.post("/voices/preview")
 def voice_preview():
-    """任意音色试听：固定文案合成一句，自动按音色类型分发厂商"""
+    """任意音色试听：固定文案合成一句，自动按音色类型分发厂商（可带方言）"""
     data = request.get_json(force=True, silent=True) or {}
     speaker = (data.get("speaker_id") or "").strip()
+    dialect = (data.get("dialect") or "").strip() or None
     if not speaker:
         return jsonify({"error": "speaker_id required"}), 400
+    bump("previews")
     d = WORK / f"preview-{uuid.uuid4().hex[:8]}"
     d.mkdir(parents=True, exist_ok=True)
     try:
         out = d / "preview.mp3"
-        synth_dispatch(PREVIEW_TEXT, speaker, out)
+        synth_dispatch(PREVIEW_TEXT, speaker, out, dialect=dialect)
         return jsonify({"audio_base64": base64.b64encode(out.read_bytes()).decode("ascii")})
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)[:300]}), 502
@@ -472,6 +933,7 @@ def voice_design():
 
 @APP.post("/voices/clone")
 def voice_clone():
+    bump("clones")
     data = request.get_json(force=True, silent=True) or {}
     audio_b64 = data.get("audio_base64") or ""
     fmt = data.get("format", "mp3").lower()
@@ -523,16 +985,18 @@ def adjust_segment(task_id: str):
 
     d = WORK / task_id
     tmp_new = d / f"seg_{index:03d}_new.mp3"
+    task_dialect = t.get("dialect") or None
     try:
         try:
             synth_dispatch(seg["text"], seg["speaker"], tmp_new, emotion=emo,
-                           scale=scale, speed=seg["speed"])
+                           scale=scale, speed=seg["speed"], dialect=task_dialect)
         except Exception:                            # 回退中性
-            synth_dispatch(seg["text"], seg["speaker"], tmp_new)
+            synth_dispatch(seg["text"], seg["speaker"], tmp_new, dialect=task_dialect)
         Path(part_files[index]).write_bytes(tmp_new.read_bytes())
         tmp_new.unlink(missing_ok=True)
 
-        audio_b, dur = mix_task(d, [Path(p) for p in part_files], bool(t.get("use_bgm", True)))
+        style_pause = {"slow": 0.55, "trailer": 0.45}.get(t.get("style") or "normal", 0.28)
+        audio_b, dur = mix_task(d, [Path(p) for p in part_files], bool(t.get("use_bgm", True)), pause=style_pause)
         t["audio_base64"] = base64.b64encode(audio_b).decode("ascii")
         t["duration_s"] = round(dur, 1)
         return jsonify({"ok": True, "segments": t["segments"],
