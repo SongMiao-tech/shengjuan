@@ -60,6 +60,13 @@
     padding: 2px 8px; border-radius: 10px;
   }
   .resume-badge { font-size: .7rem; color: var(--accent); }
+  .series-bar {
+    margin-top: 8px; padding: 8px 14px; font-size: .8rem; font-weight: 600;
+    color: var(--accent); background: var(--accent-wash); border-radius: 10px;
+    border: 1px dashed rgba(255,180,84,.4);
+  }
+  .story-src { font-size: .68rem; color: var(--ink-faint); }
+  .story-tag.ep { color: #e0705e; background: rgba(224,112,94,.12); }
 
   /* ---- 播放页 ---- */
   #player-page { display: none; padding: 0 20px; max-width: 640px; margin: 0 auto; }
@@ -274,16 +281,27 @@ function renderList() {
   const list = INDEX.stories.filter(s => ageFilter === "all" || s.age_group === ageFilter);
   const box = $("storyList");
   if (!list.length) { box.innerHTML = `<div class="empty">🌙 故事还在赶来的路上<br>先去「创作工作台」生成一篇吧</div>`; return; }
+  /* 系列分集标题条：同一系列连续排列时，集与集之间插入系列名+集数提示 */
+  let lastSeries = null;
   box.innerHTML = list.map(s => {
     const prog = getProgress(s.id);
     const resume = prog && prog.pos > 30 ? `<span class="resume-badge">· 续听 ${fmtTime(prog.pos / 1000)}</span>` : "";
-    return `<div class="story-card" data-id="${s.id}">
+    const isNewSeries = s.series && s.series !== "单篇" && s.series !== lastSeries;
+    lastSeries = s.series || "单篇";
+    const seriesBar = isNewSeries
+      ? `<div class="series-bar">📖 ${escapeHtml(s.series)} 系列 · 连续 ${INDEX.stories.filter(x => x.series === s.series).length} 集</div>` : "";
+    const epBadge = (s.series && s.series !== "单篇")
+      ? `<span class="story-tag ep">第 ${s.episode} 集</span>` : "";
+    const srcTag = s.source ? `<span class="story-src">改编自 ${escapeHtml(s.source.split("/")[0])}</span>` : "";
+    return `${seriesBar}<div class="story-card" data-id="${s.id}">
       <div class="story-emoji">${coverOf(s.id)}</div>
       <div class="story-info">
-        <div class="story-title">${escapeHtml(s.title)}</div>
+        <div class="story-title">${s.series && s.series !== "单篇" ? `${escapeHtml(s.series)}·` : ""}${escapeHtml(s.title.replace((s.series || "") + "①", "").replace((s.series || "") + "②", "").replace((s.series || "") + "③", ""))}</div>
         <div class="story-meta">
           <span>${s.age_group} 岁</span>
+          ${epBadge}
           ${(s.tags || []).slice(0, 2).map(t => `<span class="story-tag">${escapeHtml(t)}</span>`).join("")}
+          ${srcTag}
           ${resume}
         </div>
       </div></div>`;
@@ -328,7 +346,9 @@ async function openStory(id) {
   $("list-page").style.display = "none";
   $("player-page").style.display = "block";
   $("plTitle").textContent = meta.title;
-  $("plSub").textContent = `${meta.age_group} 岁 · ${(meta.tags || []).join(" / ")}`;
+  const seriesText = (meta.series && meta.series !== "单篇")
+    ? `《${meta.series}》第 ${meta.episode} 集 · ` : "";
+  $("plSub").textContent = `${meta.age_group} 岁 · ${seriesText}${(meta.tags || []).join(" / ")}`;
   $("plCover").textContent = coverOf(id);
   window.scrollTo(0, 0);
 
