@@ -293,6 +293,27 @@ def bump(key: str, n: int = 1):
 
 ANALYSIS_CACHE = {}        # sha256(text) -> segments（同文本缓存，命中跳过 GLM 调用）
 
+# GLM 免费降级链：主模型失效（key 重置/限流）时自动切换，防生产中断
+GLM_MODELS = ["glm-4-flash", "glm-4-flash-250414", "glm-4.5-air"]
+
+def _glm_chat(body: dict) -> str:
+    """带模型降级链的 GLM 调用：3 个免费模型轮换，单模型失败即换下一个"""
+    headers = {"Authorization": f"Bearer {os.environ['GLM_API_KEY']}", "Content-Type": "application/json"}
+    last_err = None
+    for model in GLM_MODELS:
+        body["model"] = model
+        try:
+            r = requests.post(GLM_URL, headers=headers, json=body, timeout=300)
+            if r.status_code != 200:
+                raise RuntimeError(f"GLM HTTP {r.status_code}: {r.text[:160]}")
+            return r.json()["choices"][0]["message"]["content"]
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+            log(f"[glm] {model} 失败，降级下一模型: {str(e)[:120]}")
+            time.sleep(1)
+    raise RuntimeError(f"GLM 全模型链失败: {last_err}")
+
+
 def analyze(text: str):
     import hashlib
     key = hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -301,23 +322,9 @@ def analyze(text: str):
         log("[glm] 同文本缓存命中，跳过 LLM 调用")
         return json.loads(json.dumps(ANALYSIS_CACHE[key], ensure_ascii=False))   # 深拷贝
     bump("llm_calls")
-    body = {"model": "glm-4-flash",
-            "messages": [{"role": "user", "content": PROMPT.replace('__TEXT__', text)}],
+    body = {"messages": [{"role": "user", "content": PROMPT.replace('__TEXT__', text)}],
             "temperature": 0.2}
-    headers = {"Authorization": f"Bearer {os.environ['GLM_API_KEY']}", "Content-Type": "application/json"}
-    content = None
-    for attempt in range(3):
-        try:
-            r = requests.post(GLM_URL, headers=headers, json=body, timeout=300)
-            if r.status_code != 200:
-                raise RuntimeError(f"GLM HTTP {r.status_code}: {r.text[:200]}")
-            content = r.json()["choices"][0]["message"]["content"]
-            break
-        except Exception as e:  # noqa: BLE001
-            log(f"[glm retry {attempt+1}] {e}")
-            time.sleep(2 * (attempt + 1))
-    if content is None:
-        raise RuntimeError("GLM 分析失败（重试耗尽）")
+    content = _glm_chat(body)
     import re
     m = re.search(r"\[.*\]", content, re.DOTALL)
     if not m:
@@ -393,23 +400,12 @@ def analyze_long(text: str):
 def translate_segments(segments: list) -> list:
     """GLM 逐段翻译为英文；失败时返回 [None]*n（双语版降级为纯中文）"""
     texts = [s["text"] for s in segments]
-    body = {"model": "glm-4-flash",
-            "messages": [{"role": "user", "content": TRANS_PROMPT.replace("__TEXT__", json.dumps(texts, ensure_ascii=False))}],
+    body = {"messages": [{"role": "user", "content": TRANS_PROMPT.replace("__TEXT__", json.dumps(texts, ensure_ascii=False))}],
             "temperature": 0.3}
-    headers = {"Authorization": f"Bearer {os.environ['GLM_API_KEY']}", "Content-Type": "application/json"}
-    content = None
-    for attempt in range(3):
-        try:
-            r = requests.post(GLM_URL, headers=headers, json=body, timeout=120)
-            if r.status_code != 200:
-                raise RuntimeError(f"GLM HTTP {r.status_code}: {r.text[:150]}")
-            content = r.json()["choices"][0]["message"]["content"]
-            break
-        except Exception as e:  # noqa: BLE001
-            log(f"[translate retry {attempt+1}] {e}")
-            time.sleep(2 * (attempt + 1))
-    if content is None:
-        log("[translate] 翻译失败，双语版降级为纯中文")
+    try:
+        content = _glm_chat(body)
+    except Exception as e:  # noqa: BLE001
+        log(f"[translate] 翻译失败（全模型链），双语版降级为纯中文: {str(e)[:100]}")
         return [None] * len(texts)
     m = _re.search(r"\[.*\]", content, _re.DOTALL)
     if not m:
