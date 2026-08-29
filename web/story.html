@@ -135,16 +135,6 @@
     cursor: pointer; display: block; margin: 10px auto 0;
   }
 
-  /* 生字卡 */
-  .vocab-strip { display: flex; gap: 8px; margin-top: 14px; overflow-x: auto; padding-bottom: 4px; }
-  .vocab-card {
-    flex-shrink: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px;
-    padding: 10px 14px; cursor: pointer; text-align: center; min-width: 76px;
-  }
-  .vocab-card:active { border-color: var(--accent); }
-  .vocab-word { font-size: 1.15rem; font-weight: 700; color: var(--accent); }
-  .vocab-hint { font-size: .66rem; color: var(--ink-faint); margin-top: 3px; max-width: 90px; }
-
   /* 睡前提示 */
   .bedtime-tip {
     text-align: center; font-size: .72rem; color: var(--ink-faint); margin-top: 18px;
@@ -206,7 +196,6 @@
   <div class="extra-row">
     <button class="pill" id="speedBtn">语速 1.0×</button>
     <button class="pill" id="timerBtn">⏰ 定时</button>
-    <button class="pill" id="followBtn">跟读识字</button>
     <button class="pill" id="parentVoiceBtn">👨‍👩‍👧 爸妈的声音讲</button>
   </div>
 
@@ -217,8 +206,6 @@
     <button class="pill tm" data-min="45">45 分</button>
     <button class="pill tm" data-min="0">关闭</button>
   </div>
-
-  <div class="vocab-strip" id="vocabStrip" style="display:none;"></div>
 
   <div class="text-box" id="textBox" style="display:none;"></div>
   <button class="text-toggle" id="textToggle">显示故事文本 ▾</button>
@@ -312,11 +299,9 @@ function renderList() {
 /* ───────── 播放器 ───────── */
 let audio = null;
 let segTimeline = [];              // [{start_ms, dur_ms, text}]
-let curSegIdx = -1;
 let sleepTimer = null, sleepFade = null;
 let sleepMinutes = 0;
 let playRate = 1.0;
-let followMode = false;
 
 function getProgress(id) {
   try { return JSON.parse(store.getItem(`sq_prog_${id}`) || "null"); } catch { return null; }
@@ -353,7 +338,6 @@ async function openStory(id) {
   window.scrollTo(0, 0);
 
   segTimeline = parseSegments(curText);
-  renderVocab(curText.new_words || []);
   renderTextBox();
 
   if (audio) { audio.pause(); audio.src = ""; }
@@ -398,7 +382,6 @@ function bindAudioEvents() {
     $("tDur").textContent = fmtTime(audio.duration);
     if (Math.floor(audio.currentTime) % 5 === 0)
       saveProgress(curAudioId, audio.currentTime * 1000, audio.duration * 1000);
-    highlightSegment(audio.currentTime * 1000);
   };
   audio.onended = () => {
     $("playBtn").textContent = "▶";
@@ -408,57 +391,9 @@ function bindAudioEvents() {
   };
 }
 
-/* 段落高亮 */
-function highlightSegment(ms) {
-  if (!followMode) return;
-  let idx = -1;
-  for (let i = 0; i < segTimeline.length; i++) {
-    if (ms >= segTimeline[i].start_ms && ms < segTimeline[i].start_ms + segTimeline[i].dur_ms) { idx = i; break; }
-  }
-  if (idx === curSegIdx) return;
-  curSegIdx = idx;
-  const box = $("textBox");
-  box.querySelectorAll("p").forEach((el, i) => {
-    el.className = i === idx ? "cur" : (i < idx ? "past" : "");
-  });
-  if (idx >= 0) box.children[idx]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-}
-
 function renderTextBox() {
   const box = $("textBox");
-  const words = (curText.new_words || []).map(w => w.word);
-  box.innerHTML = segTimeline.map((s, i) => {
-    let t = escapeHtml(s.text);
-    if (followMode) words.forEach(w => { t = t.split(escapeHtml(w)).join(`<mark>${escapeHtml(w)}</mark>`); });
-    return `<p class="${i === 0 ? "cur" : ""}">${t}</p>`;
-  }).join("");
-}
-
-/* 生字卡 */
-function renderVocab(words) {
-  const strip = $("vocabStrip");
-  if (!words || !words.length) { strip.style.display = "none"; return; }
-  strip.style.display = "flex";
-  strip.innerHTML = words.map((w, i) =>
-    `<div class="vocab-card" data-i="${i}"><div class="vocab-word">${escapeHtml(w.word)}</div>
-     <div class="vocab-hint">${escapeHtml((w.hint || "").slice(0, 14))}</div></div>`).join("");
-  strip.querySelectorAll(".vocab-card").forEach(el => {
-    el.onclick = () => {
-      const w = words[+el.dataset.i];
-      toast(`${w.word} · ${w.hint || ""}`, 3000);
-      speakWord(w.word);
-    };
-  });
-}
-/* 生字发音引导：豆包单字合成（speech_rate=-25） */
-async function speakWord(word) {
-  try {
-    const res = await fetch(API + "/voices/preview", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ speaker_id: "zh_female_yingtaowanzi_uranus_bigtts" })
-    });
-    new Audio(`data:audio/mp3;base64,${(await res.json()).audio_base64}`).play();
-  } catch (e) { /* 试听失败静默 */ }
+  box.innerHTML = segTimeline.map(s => `<p>${escapeHtml(s.text)}</p>`).join("");
 }
 
 /* 进度条拖拽（pointer events，含触屏） */
@@ -529,15 +464,6 @@ function startFadeOut() {
   }, interval);
 }
 
-/* 跟读识字开关 */
-$("followBtn").onclick = () => {
-  followMode = !followMode;
-  $("followBtn").classList.toggle("active", followMode);
-  $("textBox").style.display = followMode ? "block" : "none";
-  $("textToggle").style.display = "block";
-  renderTextBox();
-  toast(followMode ? "跟读识字：当前朗读段落高亮，生字已标出" : "跟读已关闭");
-};
 $("textToggle").onclick = () => {
   const box = $("textBox");
   box.style.display = box.style.display === "none" ? "block" : "none";

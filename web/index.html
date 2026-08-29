@@ -414,10 +414,28 @@
     .stage { grid-template-columns: 1fr; }
     aside { border-right: none; border-bottom: 1px solid var(--line); padding: 24px 24px 32px; }
     main { padding: 28px 24px 64px; }
-    header { padding: 16px 24px; }
+    /* header 换成两行：品牌+副题一行，连接状态和操作按钮第二行 */
+    header { flex-wrap: wrap; align-items: center; row-gap: 10px; padding: 14px 20px; }
+    .brand-sub { letter-spacing: .05em; }
+    .conn { margin-left: 0; order: 3; }
     footer { padding: 20px 24px; flex-direction: column; gap: 6px; }
     .seg-item { grid-template-columns: 34px 1fr; }
     .seg-meta { grid-column: 2; text-align: left; margin-top: 4px; }
+  }
+  @media (max-width: 640px) {
+    header { padding: 12px 14px; }
+    .brand { font-size: 1.18rem; }
+    .brand-sub { font-size: .68rem; letter-spacing: .04em; }
+    .conn { display: none; }                    /* 窄屏隐藏连接状态，给操作按钮让位 */
+    .bedtime-area { margin-left: auto; }        /* 睡前故事+用户区推到右端 */
+    .user-area { gap: 6px; margin-left: 0; }
+    .user-btn { font-size: .78rem; padding: 6px 10px; white-space: nowrap; }
+    .user-name { max-width: 76px; font-size: .72rem; }
+    main { padding: 20px 14px 56px; }
+    aside { padding: 18px 14px 26px; }
+    .path-grid { grid-template-columns: 1fr; }
+    .seg-item { grid-template-columns: 28px 1fr; }
+    .work-head h1, .work-title { font-size: 1.15rem; }
   }
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
@@ -430,7 +448,7 @@
   <div class="brand">声<em>卷</em></div>
   <div class="brand-sub">AUDIOBOOK STUDIO</div>
   <div class="conn"><span class="dot" id="connDot"></span><span id="connText">云端服务连接中</span></div>
-  <div class="user-area">
+  <div class="user-area bedtime-area">
     <a class="user-btn bedtime-link" href="story.html" title="前往睡前故事应用">🌙 睡前故事</a>
   </div>
   <div class="user-area" id="userArea">
