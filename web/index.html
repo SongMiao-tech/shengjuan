@@ -89,6 +89,39 @@
   .voice-play:hover { border-color: var(--accent); color: var(--accent-deep); }
   .voice-play.loading { color: var(--ink-faint); cursor: wait; animation: pulse 1.2s ease infinite; }
   .voice-play.playing { border-color: var(--accent); color: var(--accent-deep); background: var(--accent-wash); }
+  /* 用户系统：登录按钮 + 复制音色按钮 + 我的音色面板 */
+  .user-area { display: flex; align-items: center; gap: 10px; margin-left: 18px; }
+  .user-btn {
+    border: 1px solid var(--line-strong); background: #fff; color: var(--ink-soft);
+    font-size: 0.78rem; padding: 7px 14px; border-radius: 6px; cursor: pointer;
+    transition: all .16s ease; white-space: nowrap;
+  }
+  .user-btn:hover { border-color: var(--accent); color: var(--accent-deep); }
+  .user-btn.ghost { background: transparent; }
+  .user-name { font-size: 0.8rem; color: var(--ink-soft); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .voice-copy-btn {
+    width: 26px; height: 26px; border-radius: 6px; flex-shrink: 0;
+    border: 1px solid var(--line-strong); background: #fff; color: var(--ink-faint);
+    font-size: 0.72rem; cursor: pointer; transition: all .16s ease;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .voice-copy-btn:hover { border-color: var(--accent); color: var(--accent-deep); background: var(--accent-wash); }
+  .voice-copy-btn.mine { border-color: var(--accent); color: var(--accent-deep); background: var(--accent-wash); }
+  /* 「我的音色」面板按钮（独立 class，避免被 renderVoices 的复制按钮选择器覆盖事件） */
+  .mv-btn {
+    width: 26px; height: 26px; border-radius: 6px; flex-shrink: 0;
+    border: 1px solid var(--line-strong); background: #fff; color: var(--ink-faint);
+    font-size: 0.72rem; cursor: pointer; transition: all .16s ease;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .mv-btn:hover { border-color: var(--accent); color: var(--accent-deep); background: var(--accent-wash); }
+  .my-voice-item {
+    display: flex; align-items: center; justify-content: space-between;
+    border: 1px solid var(--accent); background: var(--accent-wash); border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .voice-actions { display: flex; align-items: center; gap: 6px; }
+  .voice-del:hover { border-color: #b91c1c; color: #b91c1c; background: #fef2f2; }
   .field-note { font-size: 0.75rem; color: var(--ink-faint); margin-top: 6px; line-height: 1.5; }
   .custom-input {
     width: 100%; margin-top: 8px; padding: 9px 12px;
@@ -396,10 +429,30 @@
   <div class="brand">声<em>卷</em></div>
   <div class="brand-sub">AUDIOBOOK STUDIO</div>
   <div class="conn"><span class="dot" id="connDot"></span><span id="connText">云端服务连接中</span></div>
+  <div class="user-area" id="userArea">
+    <button class="user-btn" id="loginBtn">登录 / 注册</button>
+  </div>
 </header>
 
 <div class="stage">
   <aside>
+    <div class="field" id="myVoiceField" style="display:none;">
+      <div class="field-label">我的音色 <span id="myVoiceUser" style="font-weight:400;font-size:0.72rem;color:var(--ink-faint);"></span></div>
+      <div id="myVoiceBox">
+        <div class="field-note" id="myVoiceEmpty" style="display:none;">还没有绑定音色。在下方音色列表点「复制」，或克隆/创造一个新声音。</div>
+        <div class="voice-item my-voice-item" id="myVoiceItem" style="display:none;">
+          <div class="voice-info">
+            <div class="voice-name" id="myVoiceName"></div>
+            <div class="voice-tag" id="myVoiceTag"></div>
+          </div>
+          <div class="voice-actions">
+            <button class="voice-preview" id="myVoicePreviewBtn" title="试听">▶</button>
+            <button class="mv-btn" id="myVoiceUseBtn" title="设为旁白">用</button>
+            <button class="mv-btn voice-del" id="myVoiceDelBtn" title="删除">×</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="field">
       <div class="field-label">旁白音色</div>
       <div id="voiceList"></div>
@@ -524,10 +577,217 @@
   </div>
 </div>
 
+<!-- 登录/注册弹窗 -->
+<div class="overlay" id="authModal">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-title" id="authTitle">登录声卷</div>
+    <div class="modal-sub" id="authSub">登录后可保存「我的音色」，跨设备同步。</div>
+    <input class="custom-input" id="authUser" type="text" placeholder="用户名（3-20 个字符）" maxlength="20" spellcheck="false" style="margin-top:4px;">
+    <input class="custom-input" id="authPass" type="password" placeholder="密码（至少 6 位）" maxlength="64" style="margin-top:8px;">
+    <input class="custom-input" id="authPass2" type="password" placeholder="再输一遍密码" maxlength="64" style="margin-top:8px;display:none;">
+    <div id="authStatus" style="font-size:.78rem;color:var(--ink-faint);margin:10px 0 0;min-height:1.2em;"></div>
+    <div class="m-actions">
+      <button class="m-btn" id="authSwitchBtn">还没有账号？去注册</button>
+      <button class="m-btn primary" id="authGoBtn">登录</button>
+    </div>
+  </div>
+</div>
+
 <script>
-/* ───────── 数据 ───────── */
+/* ───────── 全局常量 ───────── */
+const $ = id => document.getElementById(id);
 const API = "https://audiobook-api-303602-8-1421728968.sh.run.tcloudbase.com";
 
+/* 安全存储：沙箱 iframe / 隐私模式下 localStorage 不可用，降级为内存态 */
+const store = (() => {
+  try {
+    localStorage.setItem("__sq_probe", "1");
+    localStorage.removeItem("__sq_probe");
+    return localStorage;
+  } catch (e) {
+    const mem = {};
+    return {
+      getItem: k => (k in mem ? mem[k] : null),
+      setItem: (k, v) => { mem[k] = String(v); },
+      removeItem: k => { delete mem[k]; }
+    };
+  }
+})();
+
+/* ───────── 用户系统（自建账号 + PG，走后端 API） ───────── */
+let userToken = null, userName = null, myVoice = null;
+
+/* 恢复登录态（IIFE 同步执行只做 DOM 渲染；涉及 API 常量的请求放到异步段） */
+(async function initAuth() {
+  try {
+    const saved = JSON.parse(store.getItem("sqAuth") || "null");
+    if (saved && saved.token && saved.name) {
+      userToken = saved.token; userName = saved.name;
+    }
+  } catch (e) {}
+  renderUserArea();
+  if (userToken) await loadMyVoice();               // 微任务阶段执行，TDZ 已解除
+})();
+
+function saveAuth(token, name) {
+  userToken = token; userName = name;
+  store.setItem("sqAuth", JSON.stringify({ token, name }));
+  renderUserArea();
+  loadMyVoice();
+}
+
+function renderUserArea() {
+  const box = $("userArea");
+  if (!userToken) {
+    box.innerHTML = `<button class="user-btn" id="loginBtn">登录 / 注册</button>`;
+    $("loginBtn").onclick = openAuthModal;
+    $("myVoiceField").style.display = "none";
+  } else {
+    box.innerHTML = `<span class="user-name">👤 ${escapeHtml(userName)}</span><button class="user-btn ghost" id="logoutBtn">退出</button>`;
+    $("logoutBtn").onclick = doLogout;
+    $("myVoiceField").style.display = "";
+  }
+}
+
+function doLogout() {
+  userToken = null; userName = null; myVoice = null;
+  store.removeItem("sqAuth");
+  renderUserArea();
+}
+
+/* ───────── 登录/注册弹窗 ───────── */
+let authMode = "login";
+function openAuthModal() {
+  authMode = "login";
+  $("authPass2").style.display = "none";
+  $("authTitle").textContent = "登录声卷";
+  $("authSub").textContent = "登录后可保存「我的音色」，跨设备同步。";
+  $("authGoBtn").textContent = "登录";
+  $("authSwitchBtn").textContent = "还没有账号？去注册";
+  $("authStatus").textContent = "";
+  $("authModal").classList.add("on");
+}
+$("authSwitchBtn").onclick = () => {
+  authMode = authMode === "login" ? "register" : "login";
+  $("authPass2").style.display = authMode === "register" ? "" : "none";
+  $("authTitle").textContent = authMode === "login" ? "登录声卷" : "注册新账号";
+  $("authSub").textContent = authMode === "login" ? "登录后可保存「我的音色」，跨设备同步。" : "注册后自动登录，开始绑定你的专属音色。";
+  $("authGoBtn").textContent = authMode === "login" ? "登录" : "注册";
+  $("authSwitchBtn").textContent = authMode === "login" ? "还没有账号？去注册" : "已有账号？去登录";
+  $("authStatus").textContent = "";
+};
+$("authGoBtn").onclick = async () => {
+  const btn = $("authGoBtn"), stat = $("authStatus");
+  const user = $("authUser").value.trim(), pass = $("authPass").value, pass2 = $("authPass2").value;
+  if (!user || !pass) { stat.textContent = "用户名和密码都要填"; return; }
+  if (authMode === "register") {
+    if (pass !== pass2) { stat.textContent = "两次密码不一致"; return; }
+  }
+  btn.disabled = true; btn.textContent = authMode === "login" ? "登录中…" : "注册中…";
+  stat.textContent = "";
+  try {
+    const r = await fetch(API + (authMode === "login" ? "/auth/login" : "/auth/register"), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: user, password: pass })
+    });
+    const obj = await r.json();
+    if (!r.ok) throw new Error(obj.error || "HTTP " + r.status);
+    saveAuth(obj.token, obj.username);
+    $("authModal").classList.remove("on");   // 关登录弹窗（closeModal 只关音色弹窗）
+  } catch (e) {
+    stat.innerHTML = `<span style="color:#b91c1c">${escapeHtml(String(e.message || e).slice(0, 120))}</span>`;
+  } finally {
+    btn.disabled = false; btn.textContent = authMode === "login" ? "登录" : "注册";
+  }
+};
+
+/* ───────── 我的音色（每用户 1 条，覆盖式） ───────── */
+function meHeaders() {
+  return { "Authorization": `Bearer ${userToken}`, "Content-Type": "application/json" };
+}
+
+async function loadMyVoice() {
+  if (!userToken) return;
+  try {
+    const r = await fetch(API + "/me/voice", { headers: meHeaders() });
+    if (r.status === 401) { doLogout(); return; }
+    const obj = await r.json();
+    myVoice = obj.voice || null;
+  } catch (e) { console.warn("[myVoice] load", e); }
+  renderMyVoice();
+}
+
+function renderMyVoice() {
+  const empty = $("myVoiceEmpty"), item = $("myVoiceItem");
+  if (!myVoice) {
+    empty.style.display = ""; item.style.display = "none";
+    return;
+  }
+  empty.style.display = "none"; item.style.display = "";
+  const srcTag = { clone: "声音复刻", design: "AI 设计", preset: "复制自音色库" }[myVoice.source] || myVoice.source;
+  $("myVoiceName").textContent = myVoice.name;
+  $("myVoiceTag").textContent = `${srcTag} · ${myVoice.speaker_id.slice(0, 24)}`;
+}
+
+async function copyToMyVoice(v) {
+  if (!userToken) { openAuthModal(); return; }
+  try {
+    const r = await fetch(API + "/me/voice", {
+      method: "PUT", headers: meHeaders(),
+      body: JSON.stringify({
+        speaker_id: v.speaker_id || v.id, name: v.name,
+        source: v.source || "preset", dialect: v.dialect || null
+      })
+    });
+    const obj = await r.json();
+    if (!r.ok) throw new Error(obj.error || "HTTP " + r.status);
+    myVoice = { speaker_id: v.speaker_id || v.id, name: v.name,
+                source: v.source || "preset", dialect: v.dialect || null };
+    renderMyVoice();
+    renderVoices();
+  } catch (e) {
+    showError("复制失败：" + String(e.message || e).slice(0, 120));
+  }
+}
+
+$("myVoiceDelBtn").onclick = async () => {
+  if (!confirm("确定删除「我的音色」？删除后需重新复制。")) return;
+  try {
+    const removed = myVoice;                     // 记下删的是什么
+    await fetch(API + "/me/voice", { method: "DELETE", headers: meHeaders() });
+    if (removed && (removed.source === "clone" || removed.source === "design")) {
+      // 克隆/设计产物同步从音色列表和本地记录移除
+      const sid = removed.speaker_id;
+      store.setItem("sqVoices", JSON.stringify(loadCustomVoices().filter(x => x.id !== sid)));
+      VOICES = VOICES.filter(x => x.id !== sid);
+      if (narrator === sid) narrator = BASE_VOICES[0].id;
+    }
+    myVoice = null; renderMyVoice(); renderVoices();
+  } catch (e) { showError("删除失败：" + String(e.message || e).slice(0, 120)); }
+};
+$("myVoiceUseBtn").onclick = () => {
+  if (!myVoice) return;
+  narrator = myVoice.dialect ? `${myVoice.speaker_id}@@${myVoice.dialect}` : myVoice.speaker_id;
+  renderVoices();
+};
+$("myVoicePreviewBtn").onclick = async () => {
+  if (!myVoice) return;
+  const btn = $("myVoicePreviewBtn");
+  btn.disabled = true; btn.textContent = "…";
+  try {
+    const res = await fetch(API + "/voices/preview", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ speaker_id: myVoice.speaker_id, dialect: myVoice.dialect || null })
+    });
+    const obj = await res.json();
+    if (!res.ok) throw new Error(obj.error || "HTTP " + res.status);
+    new Audio("data:audio/mp3;base64," + obj.audio_base64).play();
+  } catch (e) { showError("试听失败：" + String(e.message || e).slice(0, 100)); }
+  btn.disabled = false; btn.textContent = "▶";
+};
+
+
+/* ───────── 数据 ───────── */
 const BASE_VOICES = [
   { id: "zh_female_yingtaowanzi_uranus_bigtts", name: "樱桃丸子", tag: "豆包同款 · 女" },
   { id: "zh_male_silang_uranus_bigtts", name: "四郎", tag: "豆包同款 · 男" },
@@ -538,17 +798,17 @@ const CLONE_TEXT = "床前明月光，疑是地上霜。举头望明月，低头
 
 /* 自定义音色持久化（创造/复制的产物） */
 function loadCustomVoices() {
-  try { return JSON.parse(localStorage.getItem("sqVoices") || "[]"); }
+  try { return JSON.parse(store.getItem("sqVoices") || "[]"); }
   catch { return []; }
 }
 function saveCustomVoice(v) {
   const list = loadCustomVoices().filter(x => x.id !== v.id);
   list.unshift(v);
-  localStorage.setItem("sqVoices", JSON.stringify(list.slice(0, 20)));
+  store.setItem("sqVoices", JSON.stringify(list.slice(0, 20)));
+  if (!VOICES.some(x => x.id === v.id)) VOICES.unshift(v);   // 克隆/设计产物立即进列表
 }
 let VOICES = [
-  { id: MY_CLONE_ID, name: "我的声音", tag: "声音复刻 · 可重新录制" },
-  ...loadCustomVoices(),
+  ...loadCustomVoices(),   // 含克隆产物「我的声音」——克隆过才会出现在列表里
   ...BASE_VOICES,
   { id: "__custom__", name: "自定义音色", tag: "创造 / 复制 →" },
 ];
@@ -662,18 +922,24 @@ function openAdjustModal(index, segs) {
   };
 }
 
-const $ = id => document.getElementById(id);
-
 /* ───────── 初始化 ───────── */
 let dialectOpen = false;   // 方言分组折叠状态
 
 function renderVoices() {
+  const copyBtn = v => {
+    if (v.id === "__custom__") return "";
+    const src = { clone: "clone", design: "design", preset: "preset" }[v.source] || "preset";
+    const isMine = myVoice && myVoice.speaker_id === (v.speaker_id || v.id);
+    return `<button class="voice-copy-btn${isMine ? " mine" : ""}" data-cp="${v.id}"
+      data-src="${src}" data-dialect="${v.dialect || ""}" title="${isMine ? "已在我的音色" : "复制到我的音色"}">${isMine ? "✓" : "⧉"}</button>`;
+  };
   const mainList = VOICES.map(v => `
     <div class="voice-option${v.id === narrator ? " active" : ""}" data-id="${v.id}">
       <span class="voice-name">${v.name}</span>
       <span style="display:flex;align-items:center;gap:8px;">
         <span class="voice-tag">${v.tag}</span>
         ${v.id !== "__custom__" ? `<button class="voice-play" data-pv="${v.id}" title="试听">▶</button>` : ""}
+        ${copyBtn(v)}
       </span>
     </div>`).join("");
   const dialectList = DIALECT_VOICES.map(v => `
@@ -682,6 +948,7 @@ function renderVoices() {
       <span style="display:flex;align-items:center;gap:8px;">
         <span class="voice-tag">${v.tag}</span>
         <button class="voice-play" data-pv="${v.id}" title="试听">▶</button>
+        ${copyBtn(v)}
       </span>
     </div>`).join("");
   $("voiceList").innerHTML = mainList
@@ -697,6 +964,21 @@ function renderVoices() {
   });
   document.querySelectorAll(".voice-play").forEach(btn => {
     btn.onclick = ev => { ev.stopPropagation(); previewVoice(btn.dataset.pv, btn); };
+  });
+  document.querySelectorAll("#voiceList .voice-copy-btn").forEach(btn => {
+    btn.onclick = ev => {
+      ev.stopPropagation();
+      const id = btn.dataset.cp;
+      const v = [...VOICES, ...DIALECT_VOICES].find(x => x.id === id);
+      if (!v) return;
+      copyToMyVoice({
+        id: v.id,
+        speaker_id: v.speaker_id || v.id,
+        name: v.name,
+        source: btn.dataset.src || "preset",
+        dialect: btn.dataset.dialect || null
+      });
+    };
   });
 }
 
@@ -1384,7 +1666,7 @@ function openModal(html) { mContent.innerHTML = html; modal.classList.add("on");
 function closeModal() {
   modal.classList.remove("on");
   stopRecording(true);                       // 关窗时清理录音资源
-  if (narrator === "__custom__") narrator = prevNarratorId || MY_CLONE_ID;
+  if (narrator === "__custom__") narrator = prevNarratorId || BASE_VOICES[0].id;
   renderVoices();
 }
 modal.addEventListener("click", e => { if (e.target === modal) closeModal(); });
@@ -1471,12 +1753,15 @@ function openDesignPanel() {
       if (!res.ok) throw new Error(obj.error || "HTTP " + res.status);
       st.innerHTML = `<span style="color:#16a34a">生成成功！正在播放试听…</span>`;
       playPreview(obj.preview_base64);
+      const designName = "设计音色 · " + new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
       saveCustomVoice({
         id: obj.voice_id,
-        name: "设计音色 · " + new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
+        name: designName,
         tag: "MiniMax 设计"
       });
       narrator = obj.voice_id;
+      renderVoices();
+      copyToMyVoice({ speaker_id: obj.voice_id, name: designName, source: "design" });
       setTimeout(() => { closeModal(); }, 1600);
     } catch (e) {
       btn.disabled = false;
@@ -1604,6 +1889,8 @@ function onRecordStop() {
       if (!res.ok) throw new Error(obj.error || "HTTP " + res.status);
       saveCustomVoice({ id: MY_CLONE_ID, name, tag: "声音复刻 · 刚录制" });
       narrator = MY_CLONE_ID;
+      renderVoices();
+      copyToMyVoice({ speaker_id: MY_CLONE_ID, name, source: "clone" });
       prog.innerHTML = `<div class="m-success">克隆成功！「${escapeHtml(name)}」已加入左侧音色列表，可以直接生成了。</div>`;
       setTimeout(closeModal, 2200);
     } catch (e) {

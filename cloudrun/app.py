@@ -10,6 +10,7 @@ import base64
 import json
 import os
 import re
+import secrets
 import subprocess
 import threading
 import time
@@ -26,8 +27,8 @@ BGM_DIR = Path(__file__).parent / "assets" / "bgm"
 @APP.after_request
 def add_cors(resp):
     resp.headers["Access-Control-Allow-Origin"] = "*"
-    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     resp.headers["Access-Control-Max-Age"] = "86400"
     return resp
 
@@ -1004,6 +1005,196 @@ def adjust_segment(task_id: str):
                         "audio_base64": t["audio_base64"]})
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)[:300]}), 502
+
+
+# ---------- 用户系统（自建：users 表 + HMAC token + PBKDF2 密码哈希） ----------
+# 说明：CloudBase Auth 不支持用户名+密码自助注册（官方文档明确），故自建用户表。
+# 前端 /auth/register /auth/login 换取 token，/me/* 接口带 Bearer token。
+# 后端持 CB_SERVICE_KEY（service_role 绕过 RLS），uid 隔离由后端代码保证。
+import hashlib
+import hmac as _hmac
+
+CB_ENV_ID = os.environ.get("CB_ENV_ID", "sm-20252354-d0gugy5fq52b8b895")
+PG_REST_BASE = f"https://{CB_ENV_ID}.api.tcloudbasegateway.com/v1/rdb/rest"
+CB_SERVICE_KEY = os.environ.get("CB_SERVICE_KEY", "")          # service_role，仅后端使用
+CB_AUTH_SECRET = os.environ.get("CB_AUTH_SECRET", "")          # token 签名密钥
+TOKEN_TTL_S = 7 * 24 * 3600                                    # token 有效期 7 天
+PBKDF2_ITER = 100_000
+
+
+def _pg_request(method, table, params=None, json_body=None, upsert=False):
+    """service_role 调 PG HTTP API（绕过 RLS，后端自己做 uid 隔离）"""
+    url = f"{PG_REST_BASE}/{table}"
+    headers = {"Authorization": f"Bearer {CB_SERVICE_KEY}", "Content-Type": "application/json"}
+    if json_body is not None:
+        headers["Prefer"] = "return=representation" + (",resolution=merge-duplicates" if upsert else "")
+    return requests.request(method, url, headers=headers, params=params or {}, json=json_body, timeout=15)
+
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def _b64url_decode(s: str) -> bytes:
+    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+
+def _sign_token(uid: str) -> str:
+    payload = _b64url(json.dumps({"uid": uid, "exp": int(time.time()) + TOKEN_TTL_S}).encode())
+    sig = _b64url(_hmac.new(CB_AUTH_SECRET.encode(), payload.encode(), hashlib.sha256).digest())
+    return f"{payload}.{sig}"
+
+
+def _check_token(token: str):
+    """验证 token，返回 uid 或 None"""
+    if not token or "." not in token:
+        return None
+    try:
+        payload, sig = token.rsplit(".", 1)
+        expect = _b64url(_hmac.new(CB_AUTH_SECRET.encode(), payload.encode(), hashlib.sha256).digest())
+        if not _hmac.compare_digest(sig, expect):
+            return None
+        obj = json.loads(_b64url_decode(payload))
+        if int(obj.get("exp", 0)) < time.time():
+            return None
+        return obj.get("uid")
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _require_uid():
+    """从请求头验证 token，返回 uid；失败时已带 401 响应（用异常流简化）"""
+    token = request.headers.get("Authorization", "").replace("Bearer ", "").strip()
+    uid = _check_token(token)
+    if not uid:
+        raise ValueError("UNAUTHORIZED")
+    return uid
+
+
+def _hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), PBKDF2_ITER)
+    return f"{salt}${dk.hex()}"
+
+
+def _check_password(password: str, stored: str) -> bool:
+    try:
+        salt, dk_hex = stored.split("$", 1)
+        dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), PBKDF2_ITER)
+        return _hmac.compare_digest(dk.hex(), dk_hex)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+@APP.post("/auth/register")
+def auth_register():
+    if not CB_SERVICE_KEY or not CB_AUTH_SECRET:
+        return jsonify({"error": "服务端用户系统未配置"}), 503
+    data = request.get_json(force=True, silent=True) or {}
+    username = (data.get("username") or "").strip()
+    password = (data.get("password") or "").strip()
+    if not username or not password:
+        return jsonify({"error": "用户名和密码必填"}), 400
+    if not re.fullmatch(r"[\w\u4e00-\u9fa5]{3,20}", username):
+        return jsonify({"error": "用户名 3-20 位，仅限中英文/数字/下划线"}), 400
+    if len(password) < 6 or len(password) > 64:
+        return jsonify({"error": "密码 6-64 位"}), 400
+    # 查重
+    try:
+        r = _pg_request("GET", "users", params={"username": f"eq.{username}", "select": "uid"})
+        if r.status_code == 200 and r.json():
+            return jsonify({"error": "用户名已被占用"}), 409
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"注册失败: {e}"}), 502
+    uid = uuid.uuid4().hex
+    try:
+        r = _pg_request("POST", "users", json_body={
+            "uid": uid, "username": username, "password_hash": _hash_password(password)})
+        if r.status_code not in (200, 201):
+            return jsonify({"error": f"注册失败: {r.text[:200]}"}), 502
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"注册失败: {e}"}), 502
+    return jsonify({"ok": True, "username": username, "token": _sign_token(uid)})
+
+
+@APP.post("/auth/login")
+def auth_login():
+    if not CB_SERVICE_KEY or not CB_AUTH_SECRET:
+        return jsonify({"error": "服务端用户系统未配置"}), 503
+    data = request.get_json(force=True, silent=True) or {}
+    username = (data.get("username") or "").strip()
+    password = (data.get("password") or "").strip()
+    if not username or not password:
+        return jsonify({"error": "用户名和密码必填"}), 400
+    try:
+        r = _pg_request("GET", "users",
+                        params={"username": f"eq.{username}", "select": "uid,password_hash"})
+        rows = r.json() if r.status_code == 200 else []
+        if not isinstance(rows, list) or not rows or not _check_password(password, rows[0].get("password_hash", "")):
+            return jsonify({"error": "用户名或密码错误"}), 401
+        return jsonify({"ok": True, "username": username, "token": _sign_token(rows[0]["uid"])})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"登录失败: {e}"}), 502
+
+
+@APP.get("/me/voice")
+def me_voice_get():
+    """查询当前用户的「我的音色」（1 条，覆盖式）；新用户返回 voice=null"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    try:
+        r = _pg_request("GET", "user_voices", params={"uid": f"eq.{uid}", "select": "*"})
+        if r.status_code == 200:
+            rows = r.json()
+            return jsonify({"voice": rows[0] if isinstance(rows, list) and rows else None})
+        return jsonify({"error": f"查询失败: {r.text[:200]}"}), r.status_code
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+
+
+@APP.put("/me/voice")
+def me_voice_put():
+    """复制/覆盖「我的音色」：每用户 1 条（PK=uid），新音色覆盖旧的。
+    body: {speaker_id, name, source, dialect?}"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    speaker_id = (data.get("speaker_id") or "").strip()
+    name = (data.get("name") or "").strip()
+    source = (data.get("source") or "preset").strip()
+    dialect = (data.get("dialect") or "").strip() or None
+    if not speaker_id or not name:
+        return jsonify({"error": "speaker_id 和 name 必填"}), 400
+    body = {"uid": uid, "speaker_id": speaker_id, "name": name, "source": source}
+    if dialect:
+        body["dialect"] = dialect
+    try:
+        r = _pg_request("POST", "user_voices", json_body=body, upsert=True,
+                        params={"on_conflict": "uid"})    # UPSERT：PK 冲突即覆盖
+        if r.status_code in (200, 201):
+            rows = r.json()
+            return jsonify(rows[0] if isinstance(rows, list) and rows else {"ok": True})
+        return jsonify({"error": f"保存失败: {r.text[:200]}"}), r.status_code
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+
+
+@APP.delete("/me/voice")
+def me_voice_delete():
+    """删除当前用户的「我的音色」"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    try:
+        r = _pg_request("DELETE", "user_voices", params={"uid": f"eq.{uid}"})
+        return jsonify({"ok": True})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
 
 
 if __name__ == "__main__":
