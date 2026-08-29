@@ -135,6 +135,31 @@
     cursor: pointer; display: block; margin: 10px auto 0;
   }
 
+  /* 我的书架 / 历史 */
+  .shelf-item {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 13px 15px; display: flex; align-items: center; gap: 12px; margin-bottom: 9px;
+  }
+  .shelf-item .si-info { flex: 1; min-width: 0; }
+  .shelf-item .si-title { font-size: .95rem; font-weight: 600; margin-bottom: 3px; }
+  .shelf-item .si-meta { font-size: .72rem; color: var(--ink-faint); }
+  .si-btn {
+    background: var(--accent); color: #1c1a24; border: none; border-radius: 9px;
+    padding: 8px 13px; font-size: .78rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  .si-btn.del { background: transparent; border: 1px solid var(--line); color: var(--ink-faint); padding: 8px 10px; }
+  .si-btn:disabled { opacity: .5; }
+  .hist-item {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 14px; margin-bottom: 8px; display: flex; gap: 10px; align-items: center;
+    cursor: pointer; transition: border-color .15s;
+  }
+  .hist-item:hover { border-color: var(--accent); }
+  .hist-item .hi-icon { font-size: 1.1rem; }
+  .hist-item .hi-body { flex: 1; min-width: 0; }
+  .hist-item .hi-title { font-size: .85rem; color: var(--ink); }
+  .hist-item .hi-time { font-size: .68rem; color: var(--ink-faint); margin-top: 2px; }
+
   /* 睡前提示 */
   .bedtime-tip {
     text-align: center; font-size: .72rem; color: var(--ink-faint); margin-top: 18px;
@@ -172,7 +197,19 @@
     <button class="tab" data-age="3-5">3~5 岁</button>
     <button class="tab" data-age="6-8">6~8 岁</button>
   </div>
+  <div class="tabs" id="myTabs" style="display:none;">
+    <button class="tab" id="shelfTab">📚 我的书架</button>
+    <button class="tab" id="histTab">🕘 历史</button>
+  </div>
   <div class="story-list" id="storyList"></div>
+  <div id="shelfPage" style="display:none;">
+    <div class="tabs" style="padding: 4px 4px 8px;">
+      <button class="tab active" id="uploadBookBtn" style="border-style: dashed;">＋ 上传读本（.txt）</button>
+      <input type="file" id="bookFile" accept=".txt,text/plain" style="display:none;">
+    </div>
+    <div id="shelfList"></div>
+  </div>
+  <div id="histPage" style="display:none;"><div id="histList"></div></div>
 </div>
 
 <div id="player-page">
@@ -214,6 +251,20 @@
 </div>
 
 <div id="toast"></div>
+
+<!-- 上传读本确认弹窗 -->
+<div id="upModal" style="display:none; position:fixed; inset:0; background:rgba(10,8,18,.7); z-index:98; align-items:center; justify-content:center;">
+  <div style="background:var(--card); border:1px solid var(--line); border-radius:16px; padding:24px 22px; max-width:360px; width:90vw;">
+    <div style="font-size:1.05rem; font-weight:700; margin-bottom:6px;">📚 上传读本</div>
+    <div style="font-size:.76rem; color:var(--ink-faint); margin-bottom:14px;" id="upMeta"></div>
+    <input id="upTitle" placeholder="书名（默认取文件名）" style="width:100%; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:11px 12px; color:var(--ink); font-size:.9rem; margin-bottom:12px; outline:none;">
+    <div style="font-size:.74rem; color:var(--ink-soft); line-height:1.7; margin-bottom:16px;" id="upPreview"></div>
+    <div style="display:flex; gap:9px;">
+      <button class="pill" id="upConfirm" style="flex:1; border-color:var(--accent); color:var(--accent); background:var(--accent-wash); padding:11px;">存入书架</button>
+      <button class="pill" id="upCancel" style="padding:11px;">取消</button>
+    </div>
+  </div>
+</div>
 
 <!-- 家长音色弹窗 -->
 <div id="pvModal" style="display:none; position:fixed; inset:0; background:rgba(10,8,18,.7); z-index:98; align-items:center; justify-content:center;">
@@ -617,11 +668,241 @@ setInterval(() => {
   } catch (e) {}
 }, 3000);
 
+/* ───────── 我的书架 & 会话历史（账号级） ───────── */
+function getAuth() {
+  try { return JSON.parse(store.getItem("sqAuth") || "null"); } catch { return null; }
+}
+let curView = "stories";        // stories | shelf | hist
+let pendingBook = null;         // 待确认上传的内容 {title, content, chars}
+
+function showView(v) {
+  curView = v;
+  $("storyList").style.display = v === "stories" ? "grid" : "none";
+  $("shelfPage").style.display = v === "shelf" ? "block" : "none";
+  $("histPage").style.display = v === "hist" ? "block" : "none";
+  $("ageTabs").style.display = v === "stories" ? "flex" : "none";
+  $("shelfTab").classList.toggle("active", v === "shelf");
+  $("histTab").classList.toggle("active", v === "hist");
+}
+$("shelfTab").onclick = () => { showView("shelf"); loadShelf(); };
+$("histTab").onclick = () => { showView("hist"); loadHistory(); };
+
+function refreshMyTabs() {
+  const auth = getAuth();
+  $("myTabs").style.display = auth && auth.token ? "flex" : "none";
+  if (!(auth && auth.token) && curView !== "stories") showView("stories");
+}
+
+function authHeaders() {
+  const auth = getAuth();
+  return auth && auth.token ? { Authorization: `Bearer ${auth.token}` } : {};
+}
+
+/* 书架 */
+async function loadShelf() {
+  const auth = getAuth();
+  if (!auth || !auth.token) return;
+  const box = $("shelfList");
+  box.innerHTML = `<div class="empty">📚 正在打开书架…</div>`;
+  try {
+    const r = await fetch(API + "/me/books", { headers: authHeaders() });
+    if (r.status === 401) { box.innerHTML = `<div class="empty">登录已过期，请重新登录</div>`; return; }
+    const books = (await r.json()).books || [];
+    if (!books.length) {
+      box.innerHTML = `<div class="empty">📚 书架还是空的<br>点上方「＋ 上传读本」把自己的书变成睡前有声书吧</div>`;
+      return;
+    }
+    box.innerHTML = books.map(b => {
+      const d = (b.created_at || "").slice(0, 10);
+      return `<div class="shelf-item">
+        <div class="si-info">
+          <div class="si-title">${escapeHtml(b.title)}</div>
+          <div class="si-meta">${b.chars} 字 · ${d}</div>
+        </div>
+        <button class="si-btn" data-id="${b.id}" data-title="${escapeHtml(b.title)}">▶ 有声化</button>
+        <button class="si-btn del" data-id="${b.id}" title="删除">✕</button>
+      </div>`;
+    }).join("");
+    box.querySelectorAll(".si-btn:not(.del)").forEach(btn => {
+      btn.onclick = () => audiobookShelfBook(btn.dataset.id, btn.dataset.title, btn);
+    });
+    box.querySelectorAll(".si-btn.del").forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm("确定从书架删除这本读本吗？")) return;
+        await fetch(API + `/me/books/${btn.dataset.id}`, { method: "DELETE", headers: authHeaders() });
+        toast("已删除");
+        loadShelf();
+      };
+    });
+  } catch (e) { box.innerHTML = `<div class="empty">加载失败：${escapeHtml(String(e).slice(0, 60))}</div>`; }
+}
+
+/* 读取书架正文并 bedtime 有声化（进入播放页，复用生成轮询） */
+async function audiobookShelfBook(bookId, title, btn) {
+  if (pvBusy) return toast("有任务正在生成中，请稍候…");
+  const auth = getAuth();
+  if (!auth || !auth.token) return;
+  btn.disabled = true; btn.textContent = "读取中…";
+  let book;
+  try {
+    const r = await fetch(`${API}/me/books/${bookId}`, { headers: authHeaders() });
+    book = (await r.json()).book;
+  } catch (e) {}
+  btn.disabled = false; btn.textContent = "▶ 有声化";
+  if (!book) return toast("读本读取失败");
+  if (book.chars > 10000) return toast("该读本超 1 万字，请先拆成多个文件分次上传", 4000);
+  showView("stories");
+  renderCustomStory(book.title, book.content);
+}
+
+/* 上传读本 */
+$("uploadBookBtn").onclick = () => {
+  const auth = getAuth();
+  if (!auth || !auth.token) {
+    return showPvModal("🔒", "还没登录", "登录后才能把读本存进你的专属书架哦。", "去登录 / 注册", () => location.href = "index.html");
+  }
+  $("bookFile").click();
+};
+$("bookFile").addEventListener("change", e => {
+  const f = e.target.files[0];
+  e.target.value = "";
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let text = "";
+    const bytes = new Uint8Array(reader.result);
+    try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+    catch (err) { text = new TextDecoder("gbk").decode(bytes); }   // 网文 TXT 常见 GBK
+    text = text.trim();
+    if (!text) return toast("文件是空的");
+    pendingBook = { title: f.name.replace(/\.txt$/i, ""), content: text, chars: text.length };
+    $("upTitle").value = pendingBook.title;
+    $("upMeta").textContent = `${f.name} · ${pendingBook.chars} 字` + (pendingBook.chars > 30000 ? `（超 3 万字将截断）` : "");
+    $("upPreview").textContent = "开头预览：" + text.slice(0, 80) + "…";
+    $("upModal").style.display = "flex";
+  };
+  reader.readAsArrayBuffer(f);
+});
+$("upCancel").onclick = () => { $("upModal").style.display = "none"; pendingBook = null; };
+$("upConfirm").onclick = async () => {
+  if (!pendingBook) return;
+  const title = ($("upTitle").value || "").trim() || pendingBook.title;
+  try {
+    const r = await fetch(API + "/me/books", {
+      method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ title, content: pendingBook.content })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+    $("upModal").style.display = "none";
+    toast(j.truncated ? `已存入书架（超 3 万字已截断至 ${j.chars} 字）` : "📚 已存入书架", 3000);
+    pendingBook = null;
+    loadShelf();
+  } catch (e) { toast("上传失败：" + String(e.message || e).slice(0, 70), 4000); }
+};
+
+/* 历史 */
+function histIcon(kind) {
+  return { upload: "📚", generate: "🎧", render: "🎙️" }[kind] || "•";
+}
+async function loadHistory() {
+  const auth = getAuth();
+  if (!auth || !auth.token) return;
+  const box = $("histList");
+  box.innerHTML = `<div class="empty">🕘 正在读取历史…</div>`;
+  try {
+    const r = await fetch(API + "/me/history?limit=50", { headers: authHeaders() });
+    const items = (await r.json()).history || [];
+    if (!items.length) {
+      box.innerHTML = `<div class="empty">🕘 还没有历史记录<br>上传读本、生成有声书都会记录在这里</div>`;
+      return;
+    }
+    box.innerHTML = items.map(h => {
+      const t = (h.created_at || "").replace("T", " ").slice(0, 16);
+      const safeDetail = escapeHtml(JSON.stringify(h.detail || {})).replace(/'/g, "&#39;");
+      return `<div class="hist-item" data-kind="${h.kind}" data-detail='${safeDetail}'>
+        <div class="hi-icon">${histIcon(h.kind)}</div>
+        <div class="hi-body">
+          <div class="hi-title">${escapeHtml(h.title || "")}</div>
+          <div class="hi-time">${t}</div>
+        </div></div>`;
+    }).join("");
+    box.querySelectorAll(".hist-item").forEach(el => {
+      el.onclick = () => {
+        const detail = JSON.parse(el.dataset.detail || "{}");
+        if (el.dataset.kind === "upload" && detail.book_id) {
+          showView("shelf"); loadShelf();
+          toast("在书架中找到对应读本，点「有声化」继续处理");
+        } else {
+          toast("该内容可在「我的书架」中重新有声化", 2600);
+        }
+      };
+    });
+  } catch (e) { box.innerHTML = `<div class="empty">加载失败：${escapeHtml(String(e).slice(0, 60))}</div>`; }
+}
+
+/* 自定义读本 → 生成 bedtime 有声版并播放（书架/家长音色共用流程） */
+function renderCustomStory(title, content) {
+  $("list-page").style.display = "none";
+  $("player-page").style.display = "block";
+  $("plTitle").textContent = title;
+  $("plSub").textContent = "我的读本 · 有声化生成中";
+  $("plCover").textContent = coverOf(title);
+  window.scrollTo(0, 0);
+  if (audio) { audio.pause(); audio.src = ""; }
+  audio = new Audio();
+  bindAudioEvents();
+  segTimeline = [];
+  startCustomRender(title, content);
+}
+
+async function startCustomRender(title, content) {
+  pvBusy = true;
+  $("playBtn").textContent = "▶";
+  $("plCover").classList.remove("playing");
+  toast(`🎙️ 正在把《${title}》变成睡前有声书…`, 5000);
+  try {
+    const r = await fetch(API + "/tasks", {
+      method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ text: content, title: title, narrator: "ttv-voice-2026082710331426-UpOQXpI8", style: "bedtime", bgm: true })
+    });
+    if (!r.ok) throw new Error((await r.json()).error || "HTTP " + r.status);
+    const { task_id } = await r.json();
+    let st = {};
+    for (let i = 0; i < 120; i++) {
+      await new Promise(res => setTimeout(res, 5000));
+      st = await fetch(`${API}/tasks/${task_id}`).then(x => x.json());
+      if (st.status !== "running") break;
+      if (i % 4 === 3) toast(`生成中… ${st.progress || ""}（${st.stage === "mixing" ? "混音" : "合成"}）`);
+    }
+    if (st.status !== "done") throw new Error(st.error || "生成超时，请稍后再试");
+    st = await fetch(`${API}/tasks/${task_id}?audio=1`).then(x => x.json());
+    const bytes = Uint8Array.from(atob(st.audio_base64), c => c.charCodeAt(0));
+    audio.src = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
+    audio.playbackRate = playRate;
+    bindAudioEvents();
+    const segs = st.segments || [];
+    if (segs.length && segs.every(s => "start_ms" in s)) segTimeline = segs;
+    renderTextBox();
+    $("plSub").textContent = "我的读本 · 睡前故事姐姐朗读";
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+    $("playBtn").textContent = "❚❚";
+    $("plCover").classList.add("playing");
+    toast("✨ 有声版好啦，正在播放");
+  } catch (e) {
+    toast("生成失败：" + String(e.message || e).slice(0, 80), 4000);
+  } finally {
+    pvBusy = false;
+  }
+}
+
 /* 返回列表 */
 $("backBtn").onclick = () => {
   if (audio) saveProgress(curAudioId, audio.currentTime * 1000, audio.duration * 1000);
   $("player-page").style.display = "none";
   $("list-page").style.display = "block";
+  refreshMyTabs();
   loadIndex();
 };
 
@@ -635,6 +916,7 @@ document.querySelectorAll("#ageTabs .tab").forEach(btn => {
   };
 });
 
+refreshMyTabs();
 loadIndex();
 </script>
 </body>

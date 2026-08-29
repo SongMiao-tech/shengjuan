@@ -948,6 +948,15 @@ def create_task():
     TASKS[task_id] = {"status": "running", "stage": "queued", "progress": "0",
                       "segments": None, "audio_base64": None, "error": None}
     bump("tasks")
+    # 登录用户自动记会话历史（匿名任务不记）
+    try:
+        uid = _require_uid()
+        _add_history(uid, "generate", f"有声化《{(data.get('title') or text[:12])}》",
+                     {"task_id": task_id, "chars": len(text), "style": style, "narrator": narrator})
+    except ValueError:
+        pass
+    except Exception as e:  # noqa: BLE001
+        log(f"[history] tasks 钩子失败: {e}")
     threading.Thread(target=run_pipeline, args=(task_id, text, narrator, use_bgm, dialect, style), daemon=True).start()
     return jsonify({"task_id": task_id})
 
@@ -1276,6 +1285,131 @@ def me_voice_delete():
         return jsonify({"ok": True})
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)[:200]}), 502
+
+
+# ---------- 个人书架与会话历史（账号级隔离） ----------
+BOOK_MAX_CHARS = 30000
+
+@APP.get("/me/books")
+def me_books_list():
+    """我的书架：当前账号上传过的全部读本"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    try:
+        r = _pg_request("GET", "user_books",
+                        params={"uid": f"eq.{uid}", "select": "id,title,chars,created_at",
+                                "order": "created_at.desc"})
+        rows = r.json() if r.status_code == 200 else []
+        return jsonify({"books": rows})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+
+
+@APP.post("/me/books")
+def me_books_create():
+    """上传读本到个人书架（title + content，超长自动截断）"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    title = (data.get("title") or "").strip()[:80]
+    content = (data.get("content") or "").strip()
+    if not title or not content:
+        return jsonify({"error": "title 和 content 必填"}), 400
+    truncated = len(content) > BOOK_MAX_CHARS
+    if truncated:
+        content = content[:BOOK_MAX_CHARS]
+    book_id = uuid.uuid4().hex[:16]
+    try:
+        r = _pg_request("POST", "user_books", json_body={
+            "id": book_id, "uid": uid, "title": title,
+            "content": content, "chars": len(content)})
+        if r.status_code not in (200, 201):
+            return jsonify({"error": f"保存失败: {r.text[:200]}"}), 502
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+    # 自动记历史
+    _add_history(uid, "upload", f"上传读本《{title}》", {"book_id": book_id, "chars": len(content)})
+    return jsonify({"ok": True, "book_id": book_id, "chars": len(content), "truncated": truncated})
+
+
+@APP.get("/me/books/<book_id>")
+def me_books_get(book_id: str):
+    """取读本正文（仅本人）"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    try:
+        r = _pg_request("GET", "user_books",
+                        params={"id": f"eq.{book_id}", "uid": f"eq.{uid}", "select": "*"})
+        rows = r.json() if r.status_code == 200 else []
+        if not rows:
+            return jsonify({"error": "读本不存在或无权访问"}), 404
+        return jsonify({"book": rows[0]})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+
+
+@APP.delete("/me/books/<book_id>")
+def me_books_delete(book_id: str):
+    """删除书架读本（仅本人）"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    try:
+        r = _pg_request("DELETE", "user_books", params={"id": f"eq.{book_id}", "uid": f"eq.{uid}"})
+        return jsonify({"ok": True})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+
+
+def _add_history(uid: str, kind: str, title: str, detail: dict | None = None):
+    """写会话历史（尽力而为，失败不阻塞主流程）"""
+    try:
+        _pg_request("POST", "user_history", json_body={
+            "uid": uid, "kind": kind, "title": title[:120],
+            "detail": detail or {}})
+    except Exception as e:  # noqa: BLE001
+        log(f"[history] 写入失败: {e}")
+
+
+@APP.get("/me/history")
+def me_history_list():
+    """会话历史：当前账号最近操作"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    limit = min(int(request.args.get("limit", 50) or 50), 100)
+    try:
+        r = _pg_request("GET", "user_history",
+                        params={"uid": f"eq.{uid}", "select": "id,kind,title,detail,created_at",
+                                "order": "created_at.desc", "limit": str(limit)})
+        rows = r.json() if r.status_code == 200 else []
+        return jsonify({"history": rows})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+
+
+@APP.post("/me/history")
+def me_history_add():
+    """手动补记一条历史（前端关键操作后调用）"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    kind = (data.get("kind") or "").strip()
+    title = (data.get("title") or "").strip()
+    if not kind or not title:
+        return jsonify({"error": "kind 和 title 必填"}), 400
+    _add_history(uid, kind, title, data.get("detail"))
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":
