@@ -1,0 +1,22 @@
+[
+  {
+    "speaker_id": "zh_female_yingtaowanzi_uranus_bigtts",
+    "name": "樱桃丸子",
+    "gender": "female"
+  },
+  {
+    "speaker_id": "zh_male_silang_uranus_bigtts",
+    "name": "四郎",
+    "gender": "male"
+  },
+  {
+    "speaker_id": "zh_male_qingcang_uranus_bigtts",
+    "name": "擎苍",
+    "gender": "male"
+  },
+  {
+    "speaker_id": "zh_female_popo_uranus_bigtts",
+    "name": "婆婆",
+    "gender": "female"
+  }
+]
