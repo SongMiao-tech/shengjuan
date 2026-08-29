@@ -487,7 +487,8 @@ def minimax_tts_bytes(text: str, voice_id: str) -> bytes:
             "output_format": "hex",
             "voice_setting": {"voice_id": voice_id, "speed": 1.0, "vol": 1.0, "pitch": 0},
             "audio_setting": {"sample_rate": 32000, "bitrate": 128000, "format": "mp3", "channel": 1}}
-    r = requests.post(f"{MM_BASE}/v1/t2a_v2?GroupId={os.environ.get('MINIMAX_GROUP_ID', '')}",
+    # 实测：带 GroupId 会报 1004 token not match group，不带则成功（key 单独可用）
+    r = requests.post(f"{MM_BASE}/v1/t2a_v2",
                       headers=mm_headers(), json=body, timeout=120)
     obj = r.json()
     br = obj.get("base_resp", {})

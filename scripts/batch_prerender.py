@@ -27,7 +27,7 @@ for line in (ROOT.parent / ".env").read_text(encoding="utf-8").splitlines():
 
 WORK = Path(tempfile.gettempdir()) / "audiobook_prerender"
 WORK.mkdir(parents=True, exist_ok=True)
-NARRATOR = "zh_female_yingtaowanzi_uranus_bigtts"
+NARRATOR = "ttv-voice-2026082710331426-UpOQXpI8"   # 睡前故事姐姐（MiniMax 设计音色）
 STYLE = "bedtime"
 PAUSE = 0.8
 
@@ -55,6 +55,7 @@ def render_story(sid: str, story: dict) -> dict:
         seg_path = d / f"seg_{i:03d}.mp3"
         app.synth_dispatch(p, NARRATOR, seg_path, loudness=5)   # bedtime 响度
         parts.append(seg_path)
+        time.sleep(3)   # MiniMax RPM 限流保护
         dur = probe_dur(seg_path)
         timeline.append({"idx": i, "start_ms": int(cursor * 1000), "dur_ms": int(dur * 1000), "text": p})
         cursor += dur + PAUSE
@@ -91,7 +92,7 @@ def render_story(sid: str, story: dict) -> dict:
 def main():
     only = set(sys.argv[1:])
     results = {}
-    for f in sorted(STORIES.glob("s*.json")):
+    for f in sorted(STORIES.glob("s??.json")):   # 精确匹配两位编号，排除 .seg.json
         sid = f.stem
         if only and sid not in only:
             continue
