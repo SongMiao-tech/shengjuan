@@ -353,6 +353,8 @@ async function openStory(id) {
     toast(`从上次的位置继续 · ${fmtTime(prog.pos / 1000)}`);
   }
   applySleepTimer();
+  userPaused = false;
+  keepAliveOn();
   audio.play().catch(() => {});
   $("playBtn").textContent = "❚❚";
   $("plCover").classList.add("playing");
@@ -383,7 +385,19 @@ function bindAudioEvents() {
     if (Math.floor(audio.currentTime) % 5 === 0)
       saveProgress(curAudioId, audio.currentTime * 1000, audio.duration * 1000);
   };
+  /* 熄屏保活：浏览器（尤其微信内置浏览器）后台会自动 pause，非用户操作时自动恢复 */
+  audio.onpause = () => {
+    if (userPaused || audio.ended) return;
+    const pos = audio.currentTime;
+    const tryResume = (n) => {
+      if (userPaused || document.visibilityState === "visible") return;
+      audio.play().then(() => { if (Math.abs(audio.currentTime - pos) > 2) audio.currentTime = pos; })
+                  .catch(() => { if (n < 8) setTimeout(() => tryResume(n + 1), 5000); });
+    };
+    setTimeout(() => tryResume(0), 300);
+  };
   audio.onended = () => {
+    userPaused = true;   // 自然播完不自动恢复
     $("playBtn").textContent = "▶";
     $("plCover").classList.remove("playing");
     saveProgress(curAudioId, 0, audio.duration * 1000);   // 听完重置
@@ -412,10 +426,16 @@ function renderTextBox() {
 })();
 
 /* 播放控制 */
+let userPaused = false;   // 区分「用户主动暂停」与「浏览器熄屏自动暂停」
 $("playBtn").onclick = () => {
   if (!audio) return;
-  if (audio.paused) { audio.play(); $("playBtn").textContent = "❚❚"; $("plCover").classList.add("playing"); }
-  else { audio.pause(); $("playBtn").textContent = "▶"; $("plCover").classList.remove("playing"); }
+  if (audio.paused) {
+    userPaused = false;
+    audio.play(); $("playBtn").textContent = "❚❚"; $("plCover").classList.add("playing");
+  } else {
+    userPaused = true; keepAliveOff();
+    audio.pause(); $("playBtn").textContent = "▶"; $("plCover").classList.remove("playing");
+  }
 };
 $("rewBtn").onclick = () => { if (audio) audio.currentTime = Math.max(0, audio.currentTime - 15); };
 $("fwdBtn").onclick = () => { if (audio) audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 30); };
@@ -459,7 +479,7 @@ function startFadeOut() {
   sleepFade = setInterval(() => {
     n++;
     audio.volume = Math.max(0, startVol * (1 - n / steps));
-    if (n >= steps) { clearInterval(sleepFade); audio.pause(); audio.volume = startVol;
+    if (n >= steps) { clearInterval(sleepFade); userPaused = true; audio.pause(); audio.volume = startVol;
       $("playBtn").textContent = "▶"; $("plCover").classList.remove("playing"); toast("🌙 晚安"); }
   }, interval);
 }
@@ -552,6 +572,26 @@ async function startParentVoiceRender(voice) {
   }
 }
 
+/* ───────── 后台/熄屏播放保活 ───────── */
+/* 静音循环音频占住媒体通道：阻止安卓 WebView 把页面判定为空闲并冻结 */
+const keepAlive = new Audio("data:audio/wav;base64,UklGRhoAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=");
+keepAlive.loop = true; keepAlive.volume = 0;
+function keepAliveOn()  { keepAlive.play().catch(() => {}); }
+function keepAliveOff() { keepAlive.pause(); }
+
+/* 回到前台：若熄屏前在播放，自动续播 */
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && audio && !userPaused && !audio.ended && audio.paused) {
+    audio.play().catch(() => {});
+  }
+});
+
+/* 微信 X5 内核：bridge ready 后放行媒体；离开页面存进度 */
+document.addEventListener("WeixinJSBridgeReady", () => { keepAliveOn(); }, false);
+window.addEventListener("pagehide", () => {
+  if (audio && curAudioId) saveProgress(curAudioId, audio.currentTime * 1000, audio.duration * 1000);
+});
+
 /* MediaSession 锁屏控制 */
 function setupMediaSession(meta) {
   if (!("mediaSession" in navigator)) return;
@@ -561,11 +601,21 @@ function setupMediaSession(meta) {
       `<svg xmlns='http://www.w3.org/2000/svg' width='192' height='192'><rect width='192' height='192' rx='36' fill='%23232030'/><text x='96' y='120' font-size='96' text-anchor='middle'>${coverOf(meta.id)}</text></svg>`),
       sizes: "192x192", type: "image/svg+xml" }]
   });
-  navigator.mediaSession.setActionHandler("play", () => { audio.play(); });
-  navigator.mediaSession.setActionHandler("pause", () => { audio.pause(); });
+  navigator.mediaSession.setActionHandler("play", () => { userPaused = false; audio.play().catch(() => {}); });
+  navigator.mediaSession.setActionHandler("pause", () => { userPaused = true; audio.pause(); });
   navigator.mediaSession.setActionHandler("seekbackward", () => { audio.currentTime = Math.max(0, audio.currentTime - 15); });
   navigator.mediaSession.setActionHandler("seekforward", () => { audio.currentTime += 30; });
+  try { navigator.mediaSession.setActionHandler("stop", () => { userPaused = true; audio.pause(); }); } catch (e) {}
 }
+
+/* 播放状态上报：锁屏界面按钮状态正确 */
+setInterval(() => {
+  if (!("mediaSession" in navigator) || !audio) return;
+  try {
+    navigator.mediaSession.playbackState =
+      audio.paused ? (userPaused ? "paused" : "paused") : "playing";
+  } catch (e) {}
+}, 3000);
 
 /* 返回列表 */
 $("backBtn").onclick = () => {
