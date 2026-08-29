@@ -1,0 +1,31 @@
+{
+ "story_id": "s03",
+ "audio": "audio/s03.mp3",
+ "duration_s": 29.2,
+ "segments": [
+  {
+   "idx": 0,
+   "start_ms": 0,
+   "dur_ms": 5232,
+   "text": "夜晚降临\n星星眨眼\n月亮婆婆\n轻声唱"
+  },
+  {
+   "idx": 1,
+   "start_ms": 6032,
+   "dur_ms": 12696,
+   "text": "“咿呀呀，小兔子\n安静地睡\n咿呀呀，小松鼠\n闭上眼\n咿呀呀，小鸟儿\n梦中飞\n”"
+  },
+  {
+   "idx": 2,
+   "start_ms": 19528,
+   "dur_ms": 5640,
+   "text": "森林里\n一片宁静\n小动物们\n慢慢入眠"
+  },
+  {
+   "idx": 3,
+   "start_ms": 25967,
+   "dur_ms": 2280,
+   "text": "入睡\n安宁"
+  }
+ ]
+}

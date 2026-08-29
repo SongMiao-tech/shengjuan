@@ -1,0 +1,229 @@
+{
+ "story_id": "s04",
+ "audio": "audio/s04.mp3",
+ "duration_s": 103.0,
+ "segments": [
+  {
+   "idx": 0,
+   "start_ms": 0,
+   "dur_ms": 2256,
+   "text": "安静的小熊屋里，"
+  },
+  {
+   "idx": 1,
+   "start_ms": 3056,
+   "dur_ms": 2040,
+   "text": "小熊坐在床边，"
+  },
+  {
+   "idx": 2,
+   "start_ms": 5896,
+   "dur_ms": 2040,
+   "text": "一颗乳牙掉了，"
+  },
+  {
+   "idx": 3,
+   "start_ms": 8736,
+   "dur_ms": 2256,
+   "text": "小熊哇哇哭。"
+  },
+  {
+   "idx": 4,
+   "start_ms": 11792,
+   "dur_ms": 2040,
+   "text": "妈妈抱抱小熊，"
+  },
+  {
+   "idx": 5,
+   "start_ms": 14632,
+   "dur_ms": 1632,
+   "text": "“不怕，不怕，"
+  },
+  {
+   "idx": 6,
+   "start_ms": 17064,
+   "dur_ms": 2664,
+   "text": "掉牙是长大的礼物。”"
+  },
+  {
+   "idx": 7,
+   "start_ms": 20528,
+   "dur_ms": 2040,
+   "text": "小熊点点头，"
+  },
+  {
+   "idx": 8,
+   "start_ms": 23368,
+   "dur_ms": 1248,
+   "text": "“真的吗？”"
+  },
+  {
+   "idx": 9,
+   "start_ms": 25415,
+   "dur_ms": 1872,
+   "text": "妈妈轻轻说，"
+  },
+  {
+   "idx": 10,
+   "start_ms": 28087,
+   "dur_ms": 1248,
+   "text": "“是的，"
+  },
+  {
+   "idx": 11,
+   "start_ms": 30135,
+   "dur_ms": 2832,
+   "text": "小熊会越来越强壮。”"
+  },
+  {
+   "idx": 12,
+   "start_ms": 33767,
+   "dur_ms": 1872,
+   "text": "小熊笑了，"
+  },
+  {
+   "idx": 13,
+   "start_ms": 36439,
+   "dur_ms": 2256,
+   "text": "“妈妈，我爱你。”"
+  },
+  {
+   "idx": 14,
+   "start_ms": 39495,
+   "dur_ms": 1872,
+   "text": "妈妈也笑了，"
+  },
+  {
+   "idx": 15,
+   "start_ms": 42167,
+   "dur_ms": 1872,
+   "text": "“我也爱你，"
+  },
+  {
+   "idx": 16,
+   "start_ms": 44839,
+   "dur_ms": 1248,
+   "text": "小熊。”"
+  },
+  {
+   "idx": 17,
+   "start_ms": 46887,
+   "dur_ms": 2448,
+   "text": "小熊闭上眼睛，"
+  },
+  {
+   "idx": 18,
+   "start_ms": 50135,
+   "dur_ms": 1632,
+   "text": "“晚安，妈妈。”"
+  },
+  {
+   "idx": 19,
+   "start_ms": 52567,
+   "dur_ms": 1632,
+   "text": "妈妈轻声说，"
+  },
+  {
+   "idx": 20,
+   "start_ms": 54999,
+   "dur_ms": 1848,
+   "text": "“晚安，小熊。”"
+  },
+  {
+   "idx": 21,
+   "start_ms": 57647,
+   "dur_ms": 2256,
+   "text": "小熊慢慢入睡，"
+  },
+  {
+   "idx": 22,
+   "start_ms": 60703,
+   "dur_ms": 2040,
+   "text": "安宁的夜晚，"
+  },
+  {
+   "idx": 23,
+   "start_ms": 63543,
+   "dur_ms": 2040,
+   "text": "小熊做了个梦。"
+  },
+  {
+   "idx": 24,
+   "start_ms": 66383,
+   "dur_ms": 1248,
+   "text": "梦里，"
+  },
+  {
+   "idx": 25,
+   "start_ms": 68431,
+   "dur_ms": 2664,
+   "text": "小熊长出了新牙，"
+  },
+  {
+   "idx": 26,
+   "start_ms": 71895,
+   "dur_ms": 1848,
+   "text": "闪闪发光，"
+  },
+  {
+   "idx": 27,
+   "start_ms": 74543,
+   "dur_ms": 1872,
+   "text": "小熊笑了，"
+  },
+  {
+   "idx": 28,
+   "start_ms": 77215,
+   "dur_ms": 1872,
+   "text": "“我长大了。”"
+  },
+  {
+   "idx": 29,
+   "start_ms": 79887,
+   "dur_ms": 1632,
+   "text": "小熊醒来，"
+  },
+  {
+   "idx": 30,
+   "start_ms": 82319,
+   "dur_ms": 2040,
+   "text": "阳光照在脸上，"
+  },
+  {
+   "idx": 31,
+   "start_ms": 85159,
+   "dur_ms": 1848,
+   "text": "小熊笑了，"
+  },
+  {
+   "idx": 32,
+   "start_ms": 87807,
+   "dur_ms": 1056,
+   "text": "“今天，"
+  },
+  {
+   "idx": 33,
+   "start_ms": 89663,
+   "dur_ms": 1872,
+   "text": "我要去冒险。”"
+  },
+  {
+   "idx": 34,
+   "start_ms": 92335,
+   "dur_ms": 2256,
+   "text": "小熊穿上衣服，"
+  },
+  {
+   "idx": 35,
+   "start_ms": 95391,
+   "dur_ms": 1464,
+   "text": "跳下床，"
+  },
+  {
+   "idx": 36,
+   "start_ms": 97655,
+   "dur_ms": 2256,
+   "text": "开始了新的一天。"
+  }
+ ]
+}

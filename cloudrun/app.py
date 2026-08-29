@@ -84,22 +84,37 @@ __TEXT__
 
 
 def assign_speakers(segments: list, narrator: str) -> dict:
-    """按角色性别动态分配音色；旁白固定用 narrator；同一角色全篇锁定同一音色"""
-    pools = {"male": list(MALE_POOL), "female": list(FEMALE_POOL)}
-    role_map = {}
+    """按角色性别分配音色；旁白固定用 narrator；同一角色全篇锁定同一音色。
+
+    改进（睡前故事版）：
+    - 分配改 hash 取模：同一角色名跨故事恒定映射同一音色（角色记忆一致性）
+    - 池耗尽不再退化成旁白（撞声），改为复用该性别池音色 + speech_rate 偏移区分
+    """
+    pools = {"male": [s for s in MALE_POOL if s != narrator],       # 角色不用旁白音色，避免撞声
+             "female": [s for s in FEMALE_POOL if s != narrator]}
+    base = {"male": list(pools["male"]), "female": list(pools["female"])}
+    role_map = {}      # role -> speaker_id
+    shift_map = {}     # role -> speech_rate 偏移（池耗尽时用于区分撞声角色）
     for seg in segments:
         r = seg.get("role", "旁白")
         if r == "旁白":
             seg["speaker"] = narrator
+            seg.setdefault("speed_shift", 0)
             continue
         if r not in role_map:
             g = seg.get("gender", "unknown")
-            pool = pools.get(g)
-            if pool:                       # 按性别依次取池中音色，多角色自然错开
-                role_map[r] = pool.pop(0)
-            else:                          # unknown 跟随旁白，保证不违和
+            if g in pools and pools[g]:
+                role_map[r] = pools[g].pop(0)
+                shift_map[r] = 0
+            elif g in base:                # 池耗尽：hash 取模复用 + 语速偏移区分
+                spk = base[g][hash(r) % len(base[g])]
+                role_map[r] = spk
+                shift_map[r] = 10 if (hash(r) % 2 == 0) else -10
+            else:                          # unknown 跟随旁白
                 role_map[r] = narrator
+                shift_map[r] = 0
         seg["speaker"] = role_map[r]
+        seg["speed_shift"] = shift_map.get(r, 0)
     return role_map
 
 TASKS: dict = {}   # task_id -> {"status","stage","segments","audio_base64","duration_s","error"}
@@ -240,9 +255,17 @@ def split_mixed_dialogue(segments: list) -> list:
     for s in result:
         if s["role"] != "旁白" and s.get("gender") in ("male", "female"):
             gmap.setdefault(s["role"], s["gender"])
+    # 儿童故事性别关键词兜底：小动物/女性称谓多为 female，避免全判 male
+    _FEMALE_HINTS = ("妈", "娘", "姐", "妹", "婆", "姨", "奶", "婶", "姑", "公主", "女王",
+                     "女孩", "姑娘", "小姐", "兔", "猫", "鸟", "蝶", "鹅", "鸭", "鹿",
+                     "狐狸", "仙女", "奶奶", "婆婆", "阿姨")
+    def _guess_gender(role: str) -> str:
+        if any(w in role for w in _FEMALE_HINTS):
+            return "female"
+        return "male"
     for s in result:
         if s.pop("_rescued", None) and s["gender"] not in ("male", "female"):
-            s["gender"] = gmap.get(s["role"], "male")
+            s["gender"] = gmap.get(s["role"], _guess_gender(s["role"]))
     return _merge_adjacent(result)
 
 
@@ -401,19 +424,19 @@ def translate_segments(segments: list) -> list:
 
 
 # ---------- 豆包 TTS ----------
-def tts(text: str, speaker: str, out_path: Path, emotion=None, scale=4, speed=0, dialect: str | None = None):
+def tts(text: str, speaker: str, out_path: Path, emotion=None, scale=4, speed=0,
+        dialect: str | None = None, loudness: int = 0):
+    """loudness_rate：响度偏移 [-50,100]（厂商口径），儿童/睡前场景用正值提清晰度"""
+    audio_params = {"format": "mp3", "sample_rate": 24000, "speech_rate": speed}
+    if loudness:
+        audio_params["loudness_rate"] = max(-50, min(100, int(loudness)))
     body = {"user": {"uid": "audiobook-cloud"},
-            "req_params": {"text": text, "speaker": speaker,
-                           "audio_params": {"format": "mp3", "sample_rate": 24000,
-                                            "speech_rate": speed}}}
+            "req_params": {"text": text, "speaker": speaker, "audio_params": audio_params}}
     if emotion:
         body["req_params"]["audio_params"]["emotion"] = emotion
         body["req_params"]["audio_params"]["emotion_scale"] = scale
     if dialect:   # 方言通道：仅支持方言的音色（vv/小何/云舟/小天）生效；additions 须为 JSON 字符串
         body["req_params"]["additions"] = json.dumps({"explicit_dialect": dialect})
-    if emotion:
-        body["req_params"]["audio_params"]["emotion"] = emotion
-        body["req_params"]["audio_params"]["emotion_scale"] = scale
     headers = {"X-Api-Key": os.environ["VOLC_API_KEY"],
                "X-Api-Resource-Id": pick_resource(speaker),
                "X-Api-Request-Id": str(uuid.uuid4())}
@@ -539,6 +562,12 @@ def run_pipeline(task_id: str, text: str, narrator: str, use_bgm: bool, dialect:
             for seg in segments:
                 seg["speed"] = max(-30, seg["speed"] - 20)
             pause = 0.55
+        elif style == "bedtime":                  # 睡前版：更缓语速 + 长留白 + 强制 calm + 响度收紧
+            for seg in segments:
+                seg["speed"] = max(-30, seg["speed"] - 15)
+                seg["intensity"] = min(seg["intensity"], 0.7)   # 情绪不过冲（scale 上限≈3.8）
+            pause = 0.8
+            force_bgm = "calm.mp3"
         elif style == "trailer":                  # 预告片版：情绪拉满 + 加速 + 强制紧张配乐
             for seg in segments:
                 seg["intensity"] = max(seg["intensity"], 0.85)
@@ -564,7 +593,9 @@ def run_pipeline(task_id: str, text: str, narrator: str, use_bgm: bool, dialect:
         role_map = assign_speakers(segments, narrator)
         log(f"[{task_id}] role_map={role_map}")
         en_voice = os.environ.get("EN_TTS_VOICE", "").strip() or "en_male_tim_uranus_bigtts"
+        loudness = 5 if style == "bedtime" else 0    # 睡前版响度略提（孩子入睡后环境噪声大）
         parts = []
+        cursor_s = 0.0                                # 段落时间轴游标（秒）
         for i, seg in enumerate(segments):
             if seg.get("en"):
                 speaker = en_voice                # 英文段落用英语母声音色
@@ -577,23 +608,33 @@ def run_pipeline(task_id: str, text: str, narrator: str, use_bgm: bool, dialect:
                 if seg["emotion"] in ("neutral", "calm"):
                     emo = None
                 scale = max(1, min(5, round(1 + seg["intensity"] * 4)))
-                seg_speed = seg["speed"]
+                seg_speed = max(-30, min(30, seg["speed"] + seg.get("speed_shift", 0)))
             seg_path = d / f"seg_{i:03d}.mp3"
             try:
-                synth_dispatch(seg["text"], speaker, seg_path, emotion=emo, scale=scale, speed=seg_speed, dialect=dialect)
+                synth_dispatch(seg["text"], speaker, seg_path, emotion=emo, scale=scale,
+                               speed=seg_speed, dialect=dialect, loudness=loudness)
             except Exception:  # 回退中性
                 synth_dispatch(seg["text"], speaker, seg_path, dialect=dialect)
             parts.append(seg_path)
+            # 段落时间轴：实际时长 ffprobe 累加（跟读高亮/生字定位的前置数据）
+            seg_dur = _probe_duration(seg_path)
+            seg["start_ms"] = int(cursor_s * 1000)
+            seg["dur_ms"] = int(seg_dur * 1000)
+            cursor_s += seg_dur + pause
             bump("chars_tts", len(seg["text"]))
             t["progress"] = f"{i+1}/{len(segments)}"
 
         t["stage"] = "mixing"
         t["part_files"] = [str(p) for p in parts]     # 供段落级调整后重混音
-        audio_b, dur = mix_task(d, parts, use_bgm, pause=pause)
+        audio_b, dur = mix_task(d, parts, use_bgm, pause=pause,
+                                force_bgm=force_bgm, bedtime=(style == "bedtime"))
         out = d / "final.mp3"
-        bgm = pick_bgm(segments) if use_bgm else ""
-        if style == "trailer" and use_bgm and bgm:    # 预告片版强制紧张曲
-            bgm = "tense.mp3"
+        if style == "bedtime":
+            bgm = "calm.mp3" if use_bgm else ""
+        elif style == "trailer":
+            bgm = "tense.mp3" if use_bgm else ""
+        else:
+            bgm = pick_bgm(segments) if use_bgm else ""
         out.write_bytes(audio_b)
 
         t["status"] = "done"
@@ -607,8 +648,23 @@ def run_pipeline(task_id: str, text: str, narrator: str, use_bgm: bool, dialect:
         log(f"[{task_id}] FAILED: {e}")
 
 
-def mix_task(d: Path, parts: list, use_bgm: bool, pause: float = 0.28):
-    """拼接段落 + BGM 匹配 ducking 混音 + 响度归一 -> (bytes, duration_s)"""
+def _probe_duration(path: Path) -> float:
+    """取单个音频文件实际时长（秒）——段落时间轴的数据源"""
+    try:
+        return float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                                     "-of", "csv=p=0", str(path)],
+                                    capture_output=True, text=True).stdout.strip())
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def mix_task(d: Path, parts: list, use_bgm: bool, pause: float = 0.28,
+             force_bgm: str | None = None, bedtime: bool = False):
+    """拼接段落 + BGM 匹配 ducking 混音 + 响度归一 -> (bytes, duration_s)
+
+    bedtime=True：BGM 音量 0.22（默认 0.32）、更安静的响度目标（I=-18）、
+                  BGM 首 5s 淡入尾 20s 淡出、整体首 2s 淡入尾 25s 淡出（入睡渐弱）
+    """
     sil = d / f"sil_{pause}.mp3"
     if not sil.exists():
         ff(["-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", str(pause), "-b:a", "128k", str(sil)])
@@ -622,10 +678,34 @@ def mix_task(d: Path, parts: list, use_bgm: bool, pause: float = 0.28):
     dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
                                 "-of", "csv=p=0", str(voice)], capture_output=True, text=True).stdout.strip())
 
-    segments_meta = TASKS.get(d.name, {}).get("segments") if d.name in TASKS else None
+    if bedtime:
+        bgm = force_bgm or "calm.mp3"
+        if not (BGM_DIR / bgm).exists():
+            bgm = pick_bgm(TASKS.get(d.name, {}).get("segments")) if use_bgm else ""
+    else:
+        segments_meta = TASKS.get(d.name, {}).get("segments") if d.name in TASKS else None
+        bgm = force_bgm or (pick_bgm(segments_meta) if (use_bgm and segments_meta) else "")
+    if use_bgm and not bgm:
+        bgm = ""
     out = d / "final.mp3"
-    bgm = pick_bgm(segments_meta) if (use_bgm and segments_meta) else ""
-    if bgm:
+    if bedtime:
+        # 睡前混音：BGM 0.22 + 首尾淡入淡出 + 更安静的响度 + 整体 25s 长淡出
+        fade_out_bg_start = max(0.0, dur - 20)
+        fade_out_start = max(0.0, dur - 25)
+        if bgm:
+            fc = (f"[1:a]atrim=0:{dur:.2f},asetpts=PTS-STARTPTS,volume=0.22,"
+                  f"afade=t=in:st=0:d=5,afade=t=out:st={fade_out_bg_start:.2f}:d=20[bg];"
+                  f"[bg][0:a]sidechaincompress=threshold=0.02:ratio=8:attack=80:release=600[ducked];"
+                  f"[0:a][ducked]amix=inputs=2:duration=first:dropout_transition=2:normalize=0,"
+                  f"loudnorm=I=-18:TP=-2:LRA=9,"
+                  f"afade=t=in:st=0:d=2,afade=t=out:st={fade_out_start:.2f}:d=25[out]")
+            ff(["-i", str(voice), "-stream_loop", "-1", "-i", str(BGM_DIR / bgm),
+                "-filter_complex", fc, "-map", "[out]", "-b:a", "128k", str(out)])
+        else:
+            ff(["-i", str(voice), "-af",
+                f"loudnorm=I=-18:TP=-2:LRA=9,afade=t=in:st=0:d=2,afade=t=out:st={fade_out_start:.2f}:d=25",
+                "-b:a", "128k", str(out)])
+    elif bgm:
         fc = (f"[1:a]atrim=0:{dur:.2f},asetpts=PTS-STARTPTS,volume=0.32[bg];"
               f"[bg][0:a]sidechaincompress=threshold=0.02:ratio=8:attack=80:release=600[ducked];"
               f"[0:a][ducked]amix=inputs=2:duration=first:dropout_transition=2:normalize=0,"
@@ -865,7 +945,7 @@ def create_task():
     use_bgm = bool(data.get("bgm", True))
     dialect = (data.get("dialect") or "").strip() or None   # 方言通道：sichuan/yue/dongbei/beijing/shanghai/henan/shaanxi/tianjin
     style = (data.get("style") or "normal").strip().lower()
-    if style not in ("normal", "slow", "trailer", "bilingual"):
+    if style not in ("normal", "slow", "trailer", "bilingual", "bedtime"):
         style = "normal"
     task_id = uuid.uuid4().hex[:12]
     TASKS[task_id] = {"status": "running", "stage": "queued", "progress": "0",
@@ -887,12 +967,14 @@ def get_task(task_id: str):
     return jsonify(resp)
 
 
-def synth_dispatch(text: str, speaker: str, out_path: Path, emotion=None, scale=4, speed=0, dialect: str | None = None):
+def synth_dispatch(text: str, speaker: str, out_path: Path, emotion=None, scale=4, speed=0,
+                   dialect: str | None = None, loudness: int = 0):
     """按音色类型分发：ttv-voice -> MiniMax；其余 -> 豆包（可带方言参数）"""
     if speaker.startswith("ttv-voice"):
         out_path.write_bytes(minimax_tts_bytes(text, speaker))
         return
-    tts(text, speaker, out_path, emotion=emotion, scale=scale, speed=speed, dialect=dialect)
+    tts(text, speaker, out_path, emotion=emotion, scale=scale, speed=speed,
+        dialect=dialect, loudness=loudness)
 
 
 # ---------- 音色接口 ----------
@@ -996,8 +1078,10 @@ def adjust_segment(task_id: str):
         Path(part_files[index]).write_bytes(tmp_new.read_bytes())
         tmp_new.unlink(missing_ok=True)
 
-        style_pause = {"slow": 0.55, "trailer": 0.45}.get(t.get("style") or "normal", 0.28)
-        audio_b, dur = mix_task(d, [Path(p) for p in part_files], bool(t.get("use_bgm", True)), pause=style_pause)
+        task_style = t.get("style") or "normal"
+        style_pause = {"slow": 0.55, "trailer": 0.45, "bedtime": 0.8}.get(task_style, 0.28)
+        audio_b, dur = mix_task(d, [Path(p) for p in part_files], bool(t.get("use_bgm", True)),
+                                pause=style_pause, bedtime=(task_style == "bedtime"))
         t["audio_base64"] = base64.b64encode(audio_b).decode("ascii")
         t["duration_s"] = round(dur, 1)
         return jsonify({"ok": True, "segments": t["segments"],

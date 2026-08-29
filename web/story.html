@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>声卷 · 晚安故事</title>
+<style>
+  :root {
+    --bg: #171522;          /* 深夜蓝紫 */
+    --card: #232030;
+    --card-hi: #2c2839;
+    --ink: #f0e8dd;         /* 暖白 */
+    --ink-soft: #b8ad9e;
+    --ink-faint: #7d7368;
+    --line: #35313f;
+    --accent: #ffb454;      /* 暖黄 */
+    --accent-deep: #e09a3e;
+    --accent-wash: rgba(255,180,84,.14);
+    --danger: #e0705e;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+    min-height: 100vh; padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+  header {
+    padding: 18px 20px 6px; display: flex; align-items: baseline; gap: 10px;
+  }
+  .brand { font-size: 1.3rem; font-weight: 700; letter-spacing: .05em; }
+  .brand em { font-style: normal; color: var(--accent); }
+  .brand-sub { font-size: .72rem; color: var(--ink-faint); letter-spacing: .2em; }
+  .moon { margin-left: auto; font-size: 1.4rem; }
+
+  /* ---- 故事列表 ---- */
+  .tabs { display: flex; gap: 8px; padding: 12px 20px; }
+  .tab {
+    border: 1px solid var(--line); background: transparent; color: var(--ink-soft);
+    padding: 8px 16px; border-radius: 20px; font-size: .85rem; cursor: pointer; transition: all .15s;
+  }
+  .tab.active { background: var(--accent-wash); border-color: var(--accent); color: var(--accent); }
+  .story-list { padding: 4px 16px; display: grid; gap: 10px; }
+  .story-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px 16px; cursor: pointer; transition: border-color .15s, transform .15s;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .story-card:active { transform: scale(.98); }
+  .story-card:hover { border-color: var(--accent); }
+  .story-emoji {
+    width: 52px; height: 52px; border-radius: 12px; background: var(--accent-wash);
+    display: flex; align-items: center; justify-content: center; font-size: 1.7rem; flex-shrink: 0;
+  }
+  .story-info { flex: 1; min-width: 0; }
+  .story-title { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
+  .story-meta { font-size: .75rem; color: var(--ink-faint); display: flex; gap: 8px; flex-wrap: wrap; }
+  .story-tag {
+    font-size: .68rem; color: var(--accent-deep); background: var(--accent-wash);
+    padding: 2px 8px; border-radius: 10px;
+  }
+  .resume-badge { font-size: .7rem; color: var(--accent); }
+
+  /* ---- 播放页 ---- */
+  #player-page { display: none; padding: 0 20px; max-width: 640px; margin: 0 auto; }
+  .back-row { display: flex; align-items: center; padding: 14px 0; }
+  .back-btn {
+    background: none; border: none; color: var(--ink-soft); font-size: .9rem;
+    cursor: pointer; padding: 8px 4px;
+  }
+  .pl-title { font-size: 1.35rem; font-weight: 700; text-align: center; margin: 4px 0 2px; }
+  .pl-sub { text-align: center; font-size: .78rem; color: var(--ink-faint); margin-bottom: 18px; }
+  .pl-cover {
+    width: min(64vw, 240px); aspect-ratio: 1; margin: 0 auto 20px; border-radius: 24px;
+    background: linear-gradient(135deg, #2c2839, #3a3150);
+    display: flex; align-items: center; justify-content: center; font-size: 4.5rem;
+    box-shadow: 0 12px 40px rgba(0,0,0,.45);
+  }
+  .pl-cover.playing { animation: breathe 4s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+
+  /* 进度条 */
+  .progress-row { display: flex; align-items: center; gap: 10px; margin: 0 6px 6px; }
+  .time { font-size: .72rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; min-width: 38px; }
+  .track { flex: 1; height: 34px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
+  .track-inner { width: 100%; height: 5px; background: var(--line); border-radius: 3px; position: relative; }
+  .track-fill { height: 100%; background: var(--accent); border-radius: 3px; width: 0%; }
+  .track-knob {
+    position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--accent); transform: translate(-50%, -50%); left: 0%;
+    box-shadow: 0 0 0 4px var(--accent-wash);
+  }
+
+  /* 控制按钮 */
+  .controls { display: flex; align-items: center; justify-content: center; gap: 26px; margin: 14px 0 6px; }
+  .ctl {
+    background: none; border: none; color: var(--ink-soft); cursor: pointer;
+    font-size: 1.15rem; width: 48px; height: 48px; border-radius: 50%; transition: all .15s;
+  }
+  .ctl:hover { color: var(--ink); }
+  .ctl.play {
+    width: 72px; height: 72px; font-size: 1.7rem; background: var(--accent); color: #1c1a24;
+    box-shadow: 0 6px 24px rgba(255,180,84,.35);
+  }
+  .ctl.play:active { transform: scale(.94); }
+  .ctl.disabled { opacity: .3; pointer-events: none; }
+
+  /* 附加控制行 */
+  .extra-row { display: flex; justify-content: center; gap: 10px; margin: 8px 0 4px; flex-wrap: wrap; }
+  .pill {
+    border: 1px solid var(--line); background: var(--card); color: var(--ink-soft);
+    font-size: .75rem; padding: 7px 14px; border-radius: 18px; cursor: pointer; transition: all .15s;
+  }
+  .pill.active { border-color: var(--accent); color: var(--accent); background: var(--accent-wash); }
+
+  /* 文本区（当前段高亮） */
+  .text-box {
+    margin-top: 16px; background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 16px 18px; max-height: 260px; overflow-y: auto;
+    font-size: .92rem; line-height: 1.9; color: var(--ink-soft);
+  }
+  .text-box p { margin-bottom: 10px; transition: color .3s; }
+  .text-box p.cur { color: var(--ink); font-weight: 500; }
+  .text-box p.past { color: var(--ink-faint); }
+  .text-box mark { background: var(--accent-wash); color: var(--accent); border-radius: 3px; padding: 0 2px; }
+  .text-toggle {
+    background: none; border: none; color: var(--ink-faint); font-size: .75rem;
+    cursor: pointer; display: block; margin: 10px auto 0;
+  }
+
+  /* 生字卡 */
+  .vocab-strip { display: flex; gap: 8px; margin-top: 14px; overflow-x: auto; padding-bottom: 4px; }
+  .vocab-card {
+    flex-shrink: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 14px; cursor: pointer; text-align: center; min-width: 76px;
+  }
+  .vocab-card:active { border-color: var(--accent); }
+  .vocab-word { font-size: 1.15rem; font-weight: 700; color: var(--accent); }
+  .vocab-hint { font-size: .66rem; color: var(--ink-faint); margin-top: 3px; max-width: 90px; }
+
+  /* 睡前提示 */
+  .bedtime-tip {
+    text-align: center; font-size: .72rem; color: var(--ink-faint); margin-top: 18px;
+  }
+  .empty { text-align: center; color: var(--ink-faint); padding: 60px 20px; font-size: .85rem; }
+
+  /* toast */
+  #toast {
+    position: fixed; left: 50%; bottom: calc(110px + env(safe-area-inset-bottom));
+    transform: translateX(-50%); background: var(--card-hi); color: var(--ink);
+    padding: 10px 18px; border-radius: 10px; font-size: .8rem; border: 1px solid var(--line);
+    opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 99; max-width: 82vw;
+    text-align: center;
+  }
+  #toast.on { opacity: 1; }
+
+  @media (max-width: 480px) {
+    .pl-cover { width: 56vw; }
+    .controls { gap: 20px; }
+    .ctl.play { width: 68px; height: 68px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div><span class="brand">声<em>卷</em> · 晚安故事</span><div class="brand-sub">BEDTIME STORIES</div></div>
+  <div class="moon">🌙</div>
+</header>
+
+<div id="list-page">
+  <div class="tabs" id="ageTabs">
+    <button class="tab active" data-age="all">全部</button>
+    <button class="tab" data-age="3-5">3~5 岁</button>
+    <button class="tab" data-age="6-8">6~8 岁</button>
+  </div>
+  <div class="story-list" id="storyList"></div>
+</div>
+
+<div id="player-page">
+  <div class="back-row"><button class="back-btn" id="backBtn">← 故事架</button></div>
+  <div class="pl-title" id="plTitle"></div>
+  <div class="pl-sub" id="plSub"></div>
+  <div class="pl-cover" id="plCover">🌙</div>
+
+  <div class="progress-row">
+    <span class="time" id="tCur">0:00</span>
+    <div class="track" id="track"><div class="track-inner"><div class="track-fill" id="tFill"></div><div class="track-knob" id="tKnob"></div></div></div>
+    <span class="time" id="tDur">0:00</span>
+  </div>
+
+  <div class="controls">
+    <button class="ctl" id="rewBtn" title="后退 15 秒">↺15</button>
+    <button class="ctl play" id="playBtn">▶</button>
+    <button class="ctl" id="fwdBtn" title="前进 30 秒">30↻</button>
+  </div>
+
+  <div class="extra-row">
+    <button class="pill" id="speedBtn">语速 1.0×</button>
+    <button class="pill" id="timerBtn">⏰ 定时</button>
+    <button class="pill" id="followBtn">跟读识字</button>
+  </div>
+
+  <div class="extra-row" id="timerOptions" style="display:none;">
+    <button class="pill tm" data-min="10">10 分</button>
+    <button class="pill tm active" data-min="20">20 分</button>
+    <button class="pill tm" data-min="30">30 分</button>
+    <button class="pill tm" data-min="45">45 分</button>
+    <button class="pill tm" data-min="0">关闭</button>
+  </div>
+
+  <div class="vocab-strip" id="vocabStrip" style="display:none;"></div>
+
+  <div class="text-box" id="textBox" style="display:none;"></div>
+  <button class="text-toggle" id="textToggle">显示故事文本 ▾</button>
+
+  <div class="bedtime-tip" id="bedtimeTip">🌙 睡前模式 · 声音会在 20 分钟后轻轻睡去</div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ───────── 共享基础（与 index.html 同款） ───────── */
+const API = "https://audiobook-api-303602-8-1421728968.sh.run.tcloudbase.com";
+const $ = id => document.getElementById(id);
+const store = (() => {
+  try { localStorage.setItem("__sq_p", "1"); localStorage.removeItem("__sq_p"); return localStorage; }
+  catch (e) { const m = {}; return { getItem: k => (k in m ? m[k] : null),
+    setItem: (k, v) => { m[k] = String(v); }, removeItem: k => { delete m[k]; } }; }
+})();
+function escapeHtml(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function toast(msg, ms = 2200) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(t._tm); t._tm = setTimeout(() => t.classList.remove("on"), ms);
+}
+function fmtTime(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+}
+/* 封面 emoji：按 id 稳定选取 */
+const COVERS = ["🐰", "🐻", "🦊", "🌙", "⭐", "🐢", "🦆", "🧸", "🐷", "🦔", "🍓", "🐯", "🐴", "🐑", "🦉"];
+const coverOf = id => COVERS[[...id].reduce((a, c) => a + c.charCodeAt(0), 0) % COVERS.length];
+
+/* ───────── 故事库 ───────── */
+const STORY_BASE = "stories", AUDIO_BASE = "audio";
+let INDEX = { stories: [] };
+let curStory = null, curText = null;      // 当前故事元数据 / 正文对象
+let curAudioId = null;
+let ageFilter = "all";
+
+async function loadIndex() {
+  try {
+    INDEX = await fetch(`${STORY_BASE}/index.json`).then(r => r.json());
+  } catch (e) { INDEX = { stories: [] }; }
+  renderList();
+}
+
+function renderList() {
+  const list = INDEX.stories.filter(s => ageFilter === "all" || s.age_group === ageFilter);
+  const box = $("storyList");
+  if (!list.length) { box.innerHTML = `<div class="empty">🌙 故事还在赶来的路上<br>先去「创作工作台」生成一篇吧</div>`; return; }
+  box.innerHTML = list.map(s => {
+    const prog = getProgress(s.id);
+    const resume = prog && prog.pos > 30 ? `<span class="resume-badge">· 续听 ${fmtTime(prog.pos / 1000)}</span>` : "";
+    return `<div class="story-card" data-id="${s.id}">
+      <div class="story-emoji">${coverOf(s.id)}</div>
+      <div class="story-info">
+        <div class="story-title">${escapeHtml(s.title)}</div>
+        <div class="story-meta">
+          <span>${s.age_group} 岁</span>
+          ${(s.tags || []).slice(0, 2).map(t => `<span class="story-tag">${escapeHtml(t)}</span>`).join("")}
+          ${resume}
+        </div>
+      </div></div>`;
+  }).join("");
+  box.querySelectorAll(".story-card").forEach(el => { el.onclick = () => openStory(el.dataset.id); });
+}
+
+/* ───────── 播放器 ───────── */
+let audio = null;
+let segTimeline = [];              // [{start_ms, dur_ms, text}]
+let curSegIdx = -1;
+let sleepTimer = null, sleepFade = null;
+let sleepMinutes = 0;
+let playRate = 1.0;
+let followMode = false;
+
+function getProgress(id) {
+  try { return JSON.parse(store.getItem(`sq_prog_${id}`) || "null"); } catch { return null; }
+}
+function saveProgress(id, posMs, durMs) {
+  store.setItem(`sq_prog_${id}`, JSON.stringify({ pos: posMs, dur: durMs, at: Date.now() }));
+}
+
+async function openStory(id) {
+  const meta = INDEX.stories.find(s => s.id === id);
+  if (!meta) return toast("故事数据未找到");
+  curStory = meta;
+  try { curText = await fetch(`${STORY_BASE}/${id}.json`).then(r => r.json()); }
+  catch (e) { return toast("故事正文加载失败"); }
+  curAudioId = id;
+
+  /* 预生成音频直链；无预生成时走实时生成（提示等待） */
+  let audioUrl = `${AUDIO_BASE}/${id}.mp3`;
+  try {
+    const head = await fetch(audioUrl, { method: "HEAD" });
+    if (!head.ok) throw new Error("no preset audio");
+  } catch (e) {
+    toast("这篇还没有预生成音频，正在实时生成…（约 1~3 分钟）", 4000);
+    return;   // MVP：实时生成走工作台，此处提示
+  }
+
+  $("list-page").style.display = "none";
+  $("player-page").style.display = "block";
+  $("plTitle").textContent = meta.title;
+  $("plSub").textContent = `${meta.age_group} 岁 · ${(meta.tags || []).join(" / ")}`;
+  $("plCover").textContent = coverOf(id);
+  window.scrollTo(0, 0);
+
+  segTimeline = parseSegments(curText);
+  renderVocab(curText.new_words || []);
+  renderTextBox();
+
+  if (audio) { audio.pause(); audio.src = ""; }
+  audio = new Audio(audioUrl);
+  audio.preload = "auto";
+  audio.playbackRate = playRate;
+  bindAudioEvents();
+  setupMediaSession(meta);
+
+  const prog = getProgress(id);
+  if (prog && prog.pos > 30000) {
+    audio.currentTime = prog.pos / 1000;
+    toast(`从上次的位置继续 · ${fmtTime(prog.pos / 1000)}`);
+  }
+  applySleepTimer();
+  audio.play().catch(() => {});
+  $("playBtn").textContent = "❚❚";
+  $("plCover").classList.add("playing");
+}
+
+/* 段落 → 时间轴（预生成 seg JSON 优先，回退字数估算） */
+function parseSegments(story) {
+  const paras = (story.text || "").split(/\n\n+/).filter(p => p.trim());
+  const WPS = 4.2;    // 实测 4.2 字/秒（普通语速）；bedtime 更慢
+  const WPS_SLOW = 3.2;
+  let cursor = 0;
+  return paras.map(p => {
+    const dur = (p.length / (story.age_group === "3-5" ? WPS_SLOW : WPS)) * 1000 + 800;
+    const seg = { start_ms: Math.round(cursor), dur_ms: Math.round(dur), text: p };
+    cursor += dur + 800;
+    return seg;
+  });
+}
+
+function bindAudioEvents() {
+  audio.ontimeupdate = () => {
+    if (!audio.duration) return;
+    const pct = (audio.currentTime / audio.duration) * 100;
+    $("tFill").style.width = pct + "%";
+    $("tKnob").style.left = pct + "%";
+    $("tCur").textContent = fmtTime(audio.currentTime);
+    $("tDur").textContent = fmtTime(audio.duration);
+    if (Math.floor(audio.currentTime) % 5 === 0)
+      saveProgress(curAudioId, audio.currentTime * 1000, audio.duration * 1000);
+    highlightSegment(audio.currentTime * 1000);
+  };
+  audio.onended = () => {
+    $("playBtn").textContent = "▶";
+    $("plCover").classList.remove("playing");
+    saveProgress(curAudioId, 0, audio.duration * 1000);   // 听完重置
+    if (sleepTimer) { clearSleepTimer(); toast("🌙 定时时间到，晚安"); }
+  };
+}
+
+/* 段落高亮 */
+function highlightSegment(ms) {
+  if (!followMode) return;
+  let idx = -1;
+  for (let i = 0; i < segTimeline.length; i++) {
+    if (ms >= segTimeline[i].start_ms && ms < segTimeline[i].start_ms + segTimeline[i].dur_ms) { idx = i; break; }
+  }
+  if (idx === curSegIdx) return;
+  curSegIdx = idx;
+  const box = $("textBox");
+  box.querySelectorAll("p").forEach((el, i) => {
+    el.className = i === idx ? "cur" : (i < idx ? "past" : "");
+  });
+  if (idx >= 0) box.children[idx]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+function renderTextBox() {
+  const box = $("textBox");
+  const words = (curText.new_words || []).map(w => w.word);
+  box.innerHTML = segTimeline.map((s, i) => {
+    let t = escapeHtml(s.text);
+    if (followMode) words.forEach(w => { t = t.split(escapeHtml(w)).join(`<mark>${escapeHtml(w)}</mark>`); });
+    return `<p class="${i === 0 ? "cur" : ""}">${t}</p>`;
+  }).join("");
+}
+
+/* 生字卡 */
+function renderVocab(words) {
+  const strip = $("vocabStrip");
+  if (!words || !words.length) { strip.style.display = "none"; return; }
+  strip.style.display = "flex";
+  strip.innerHTML = words.map((w, i) =>
+    `<div class="vocab-card" data-i="${i}"><div class="vocab-word">${escapeHtml(w.word)}</div>
+     <div class="vocab-hint">${escapeHtml((w.hint || "").slice(0, 14))}</div></div>`).join("");
+  strip.querySelectorAll(".vocab-card").forEach(el => {
+    el.onclick = () => {
+      const w = words[+el.dataset.i];
+      toast(`${w.word} · ${w.hint || ""}`, 3000);
+      speakWord(w.word);
+    };
+  });
+}
+/* 生字发音引导：豆包单字合成（speech_rate=-25） */
+async function speakWord(word) {
+  try {
+    const res = await fetch(API + "/voices/preview", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ speaker_id: "zh_female_yingtaowanzi_uranus_bigtts" })
+    });
+    new Audio(`data:audio/mp3;base64,${(await res.json()).audio_base64}`).play();
+  } catch (e) { /* 试听失败静默 */ }
+}
+
+/* 进度条拖拽（pointer events，含触屏） */
+(function bindTrack() {
+  const track = $("track");
+  let seeking = false;
+  const seekTo = e => {
+    if (!audio || !audio.duration) return;
+    const rect = track.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    audio.currentTime = ratio * audio.duration;
+  };
+  track.addEventListener("pointerdown", e => { seeking = true; track.setPointerCapture(e.pointerId); seekTo(e); });
+  track.addEventListener("pointermove", e => { if (seeking) seekTo(e); });
+  track.addEventListener("pointerup", () => { seeking = false; });
+})();
+
+/* 播放控制 */
+$("playBtn").onclick = () => {
+  if (!audio) return;
+  if (audio.paused) { audio.play(); $("playBtn").textContent = "❚❚"; $("plCover").classList.add("playing"); }
+  else { audio.pause(); $("playBtn").textContent = "▶"; $("plCover").classList.remove("playing"); }
+};
+$("rewBtn").onclick = () => { if (audio) audio.currentTime = Math.max(0, audio.currentTime - 15); };
+$("fwdBtn").onclick = () => { if (audio) audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 30); };
+
+$("speedBtn").onclick = () => {
+  const rates = [0.8, 1.0, 1.25];
+  playRate = rates[(rates.indexOf(playRate) + 1) % rates.length];
+  if (audio) audio.playbackRate = playRate;
+  $("speedBtn").textContent = `语速 ${playRate.toFixed(2).replace(/0$/, "")}×`.replace("1.0×", "1.0×").replace("0.80×","0.8×").replace("1.25×","1.25×");
+  $("speedBtn").classList.toggle("active", playRate !== 1.0);
+};
+
+/* 定时停止 + 渐弱 */
+$("timerBtn").onclick = () => {
+  const box = $("timerOptions");
+  box.style.display = box.style.display === "none" ? "flex" : "none";
+};
+document.querySelectorAll(".pill.tm").forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll(".pill.tm").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    sleepMinutes = +btn.dataset.min;
+    applySleepTimer();
+    $("timerOptions").style.display = "none";
+    toast(sleepMinutes ? `🌙 ${sleepMinutes} 分钟后轻轻停止` : "定时已关闭");
+    $("bedtimeTip").textContent = sleepMinutes
+      ? `🌙 睡前模式 · 声音会在 ${sleepMinutes} 分钟后轻轻睡去`
+      : "🌙 睡前模式 · 定时已关闭";
+  };
+});
+function applySleepTimer() {
+  clearSleepTimer();
+  if (!sleepMinutes || !audio) return;
+  sleepTimer = setTimeout(() => startFadeOut(), sleepMinutes * 60 * 1000);
+}
+function clearSleepTimer() { clearTimeout(sleepTimer); clearInterval(sleepFade); sleepTimer = sleepFade = null; }
+function startFadeOut() {
+  if (!audio) return;
+  const startVol = audio.volume, steps = 60, interval = 30000 / steps;
+  let n = 0;
+  sleepFade = setInterval(() => {
+    n++;
+    audio.volume = Math.max(0, startVol * (1 - n / steps));
+    if (n >= steps) { clearInterval(sleepFade); audio.pause(); audio.volume = startVol;
+      $("playBtn").textContent = "▶"; $("plCover").classList.remove("playing"); toast("🌙 晚安"); }
+  }, interval);
+}
+
+/* 跟读识字开关 */
+$("followBtn").onclick = () => {
+  followMode = !followMode;
+  $("followBtn").classList.toggle("active", followMode);
+  $("textBox").style.display = followMode ? "block" : "none";
+  $("textToggle").style.display = "block";
+  renderTextBox();
+  toast(followMode ? "跟读识字：当前朗读段落高亮，生字已标出" : "跟读已关闭");
+};
+$("textToggle").onclick = () => {
+  const box = $("textBox");
+  box.style.display = box.style.display === "none" ? "block" : "none";
+};
+
+/* MediaSession 锁屏控制 */
+function setupMediaSession(meta) {
+  if (!("mediaSession" in navigator)) return;
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: meta.title, artist: "声卷 · 晚安故事",
+    artwork: [{ src: "data:image/svg+xml," + encodeURIComponent(
+      `<svg xmlns='http://www.w3.org/2000/svg' width='192' height='192'><rect width='192' height='192' rx='36' fill='%23232030'/><text x='96' y='120' font-size='96' text-anchor='middle'>${coverOf(meta.id)}</text></svg>`),
+      sizes: "192x192", type: "image/svg+xml" }]
+  });
+  navigator.mediaSession.setActionHandler("play", () => { audio.play(); });
+  navigator.mediaSession.setActionHandler("pause", () => { audio.pause(); });
+  navigator.mediaSession.setActionHandler("seekbackward", () => { audio.currentTime = Math.max(0, audio.currentTime - 15); });
+  navigator.mediaSession.setActionHandler("seekforward", () => { audio.currentTime += 30; });
+}
+
+/* 返回列表 */
+$("backBtn").onclick = () => {
+  if (audio) saveProgress(curAudioId, audio.currentTime * 1000, audio.duration * 1000);
+  $("player-page").style.display = "none";
+  $("list-page").style.display = "block";
+  loadIndex();
+};
+
+/* 年龄筛选 */
+document.querySelectorAll("#ageTabs .tab").forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll("#ageTabs .tab").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    ageFilter = btn.dataset.age;
+    renderList();
+  };
+});
+
+loadIndex();
+</script>
+</body>
+</html>

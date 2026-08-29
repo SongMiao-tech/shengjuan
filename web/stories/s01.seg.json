@@ -1,0 +1,73 @@
+{
+ "story_id": "s01",
+ "audio": "audio/s01.mp3",
+ "duration_s": 40.4,
+ "segments": [
+  {
+   "idx": 0,
+   "start_ms": 0,
+   "dur_ms": 2256,
+   "text": "安静的小树林里，"
+  },
+  {
+   "idx": 1,
+   "start_ms": 3056,
+   "dur_ms": 2664,
+   "text": "小兔子害怕黑夜。"
+  },
+  {
+   "idx": 2,
+   "start_ms": 6520,
+   "dur_ms": 2640,
+   "text": "“喵喵，我怕黑。”"
+  },
+  {
+   "idx": 3,
+   "start_ms": 9960,
+   "dur_ms": 3648,
+   "text": "“呼呼，不怕，月亮灯来啦！”"
+  },
+  {
+   "idx": 4,
+   "start_ms": 14408,
+   "dur_ms": 2448,
+   "text": "小猫带来月亮灯。"
+  },
+  {
+   "idx": 5,
+   "start_ms": 17656,
+   "dur_ms": 3240,
+   "text": "“亮亮，亮亮，真好看。”"
+  },
+  {
+   "idx": 6,
+   "start_ms": 21696,
+   "dur_ms": 2424,
+   "text": "小兔子笑开了花。"
+  },
+  {
+   "idx": 7,
+   "start_ms": 24920,
+   "dur_ms": 2832,
+   "text": "“晚安，晚安，月亮灯。”"
+  },
+  {
+   "idx": 8,
+   "start_ms": 28552,
+   "dur_ms": 3240,
+   "text": "小兔子慢慢闭上眼。"
+  },
+  {
+   "idx": 9,
+   "start_ms": 32592,
+   "dur_ms": 3072,
+   "text": "“晚安，晚安，月亮灯。”"
+  },
+  {
+   "idx": 10,
+   "start_ms": 36464,
+   "dur_ms": 2448,
+   "text": "小兔子甜甜入睡。"
+  }
+ ]
+}
