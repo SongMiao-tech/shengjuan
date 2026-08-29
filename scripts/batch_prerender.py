@@ -27,7 +27,7 @@ for line in (ROOT.parent / ".env").read_text(encoding="utf-8").splitlines():
 
 WORK = Path(tempfile.gettempdir()) / "audiobook_prerender"
 WORK.mkdir(parents=True, exist_ok=True)
-NARRATOR = "ttv-voice-2026082710331426-UpOQXpI8"   # 睡前故事姐姐（MiniMax 设计音色）
+NARRATOR = "zh_female_yingtaowanzi_uranus_bigtts"   # 樱桃丸子（豆包，断句完整）
 STYLE = "bedtime"
 PAUSE = 0.8
 
