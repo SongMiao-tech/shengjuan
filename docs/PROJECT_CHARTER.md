@@ -214,6 +214,23 @@
   3. 原型链 hook（`HTMLMediaElement.prototype.play`）必须先存 `__orig` 再覆盖，否则自递归会冻死页面。
   4. 本地 `python http.server` 不支持 Range 请求，seek 会触发媒体错误并被 keep-alive 自动恢复机制从 0 续播——验证 seek/断点行为要用支持 Range 的服务器或生产环境。
 
+### 7.20 跨页面共享 localStorage：字段形状必须对齐
+
+- **现象**：用户已在工作台登录，跳到睡前故事页（同域另一个 HTML）后，就寝门禁却判其"未登录"并弹登录引导。
+- **根因**：工作台写入 `sqAuth` 的形状是 `{token, name}`，story.html 按想象的 `{token, username}` 读取——`auth.username` 恒为 undefined，登录检查恒判负。
+- **规避**：
+  1. 跨页面共享 localStorage 字段前，先 dump 一份真实数据确认形状，再写读取代码；不要按想象写字段名。
+  2. 兼容历史数据时用双字段回退（`a.name || a.username`），story.html 共 4 处读取统一改造。
+  3. 同理适用于所有共享 key：sqAuth、sqVoices、sqParentCtrl 等，建议在宪章或代码注释中登记权威字段清单。
+
+### 7.21 暗底 UI 装饰素材：混合模式与可见度
+
+- **现象**：夜云素材叠加到暗色 UI 上几乎不可见（透明度拉满也不明显）；工作台暖纸底上两枚暖色素材相邻则叠加显脏。
+- **根因**：暗底必须用 `screen`/`lighten` 混合（`multiply` 会吃掉发光素材），而极暗素材（近纯黑）即使 screen + opacity 1 也只能轻微提亮；暖色系素材水平相邻时半透明叠加会互相污染。
+- **规避**：
+  1. 暗底 UI 素材提示词要求"主体亮度中等 + 背景与界面底色同族（如 #171522）"，叠加用 `screen`；亮底 UI 用 `multiply`。
+  2. 一个区域只叠一张素材；装饰带落在有 max-width 的容器内时，mask 必须在容器边界前完全透明，否则出现硬切缝。
+
 ---
 
 ## 8. 文件清单
