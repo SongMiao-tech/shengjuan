@@ -37,6 +37,7 @@
     border-bottom: 1px solid var(--line);
     background: var(--paper);
     position: relative;
+    overflow: hidden;
   }
 
   /* ── AI 装饰素材叠加层（multiply 混合，正文永远在素材之上） ── */
@@ -46,16 +47,16 @@
   }
   header > *:not(.deco), aside > *:not(.deco), main > *:not(.deco) { position: relative; z-index: 1; }
   .deco-glow {
-    top: -80px; right: 0; width: 520px; height: 520px;
-    opacity: .68;
-    -webkit-mask-image: radial-gradient(closest-side, #000 55%, transparent 100%);
-    mask-image: radial-gradient(closest-side, #000 55%, transparent 100%);
+    top: -150px; right: 0; width: 480px; height: 480px;
+    opacity: .55;
+    -webkit-mask-image: radial-gradient(closest-side, #000 50%, transparent 100%);
+    mask-image: radial-gradient(closest-side, #000 50%, transparent 100%);
   }
   .deco-wave {
     top: -4px; left: 0; width: 100%; height: 240px;
-    object-fit: cover; object-position: center bottom; opacity: .42;
-    -webkit-mask-image: radial-gradient(ellipse 92% 95% at 50% 50%, #000 52%, transparent 99%);
-    mask-image: radial-gradient(ellipse 92% 95% at 50% 50%, #000 52%, transparent 99%);
+    object-fit: cover; object-position: center bottom; opacity: .38;
+    -webkit-mask-image: radial-gradient(ellipse 135% 170% at 0% 55%, #000 35%, transparent 72%);
+    mask-image: radial-gradient(ellipse 135% 170% at 0% 55%, #000 35%, transparent 72%);
   }
   .deco-paper {
     top: 0; left: 0; width: 100%; height: 380px;
@@ -441,7 +442,7 @@
   @media (max-width: 900px) {
     .deco-wave { height: 180px; opacity: .36; }
     .deco-paper { height: 300px; opacity: .26; }
-    .deco-glow { width: 360px; height: 360px; top: -60px; opacity: .5; }
+    .deco-glow { width: 380px; height: 380px; top: -120px; opacity: .45; }
     .stage { grid-template-columns: 1fr; }
     aside { border-right: none; border-bottom: 1px solid var(--line); padding: 24px 24px 32px; }
     main { padding: 28px 24px 64px; }
