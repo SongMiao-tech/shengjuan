@@ -7,6 +7,8 @@
 
 - [PRD.md](PRD.md) — 产品需求文档（已确认）
 - [docs/技术方案.md](docs/技术方案.md) — 完整技术方案（v2.0 纯 API 版）
+- [docs/WORKLOG.md](docs/WORKLOG.md) — 每日工作日志（持续更新）
+- [docs/PROJECT_CHARTER.md](docs/PROJECT_CHARTER.md) — 项目宪章与 AI vibe coding 开发经验
 
 ## 目录结构
 
