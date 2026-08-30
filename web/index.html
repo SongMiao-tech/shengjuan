@@ -36,6 +36,32 @@
     padding: 20px 48px;
     border-bottom: 1px solid var(--line);
     background: var(--paper);
+    position: relative;
+  }
+
+  /* ── AI 装饰素材叠加层（multiply 混合，正文永远在素材之上） ── */
+  .deco {
+    position: absolute; pointer-events: none; user-select: none;
+    mix-blend-mode: multiply; z-index: 0;
+  }
+  header > *:not(.deco), aside > *:not(.deco), main > *:not(.deco) { position: relative; z-index: 1; }
+  .deco-glow {
+    top: -80px; right: 0; width: 520px; height: 520px;
+    opacity: .68;
+    -webkit-mask-image: radial-gradient(closest-side, #000 55%, transparent 100%);
+    mask-image: radial-gradient(closest-side, #000 55%, transparent 100%);
+  }
+  .deco-wave {
+    top: -4px; left: 0; width: 100%; height: 240px;
+    object-fit: cover; object-position: center bottom; opacity: .42;
+    -webkit-mask-image: radial-gradient(ellipse 92% 95% at 50% 50%, #000 52%, transparent 99%);
+    mask-image: radial-gradient(ellipse 92% 95% at 50% 50%, #000 52%, transparent 99%);
+  }
+  .deco-paper {
+    top: 0; left: 0; width: 100%; height: 380px;
+    object-fit: cover; object-position: left top; opacity: .3;
+    -webkit-mask-image: radial-gradient(150% 125% at 0% 0%, #000 50%, transparent 96%);
+    mask-image: radial-gradient(150% 125% at 0% 0%, #000 50%, transparent 96%);
   }
   .brand { font-family: var(--serif); font-size: 1.35rem; font-weight: 700; letter-spacing: 0.06em; }
   .brand em { font-style: normal; color: var(--accent); }
@@ -53,8 +79,10 @@
     border-right: 1px solid var(--line);
     padding: 32px 28px 48px;
     background: var(--paper);
+    position: relative;
+    overflow: hidden;
   }
-  main { padding: 40px 56px 80px; max-width: 980px; }
+  main { padding: 40px 56px 80px; max-width: 980px; position: relative; }
 
   /* ── 左栏控制面板 ─────────────────── */
   .field { margin-bottom: 28px; }
@@ -411,6 +439,9 @@
 
   /* 响应式 */
   @media (max-width: 900px) {
+    .deco-wave { height: 180px; opacity: .36; }
+    .deco-paper { height: 300px; opacity: .26; }
+    .deco-glow { width: 360px; height: 360px; top: -60px; opacity: .5; }
     .stage { grid-template-columns: 1fr; }
     aside { border-right: none; border-bottom: 1px solid var(--line); padding: 24px 24px 32px; }
     main { padding: 28px 24px 64px; }
@@ -445,6 +476,7 @@
 <body>
 
 <header>
+  <img class="deco deco-glow" src="deco/deco-glow.webp" alt="" aria-hidden="true">
   <div class="brand">声<em>卷</em></div>
   <div class="brand-sub">AUDIOBOOK STUDIO</div>
   <div class="conn"><span class="dot" id="connDot"></span><span id="connText">云端服务连接中</span></div>
@@ -458,6 +490,7 @@
 
 <div class="stage">
   <aside>
+    <img class="deco deco-paper" src="deco/deco-paper.webp" alt="" aria-hidden="true">
     <div class="field" id="myVoiceField" style="display:none;">
       <div class="field-label">我的音色 <span id="myVoiceUser" style="font-weight:400;font-size:0.72rem;color:var(--ink-faint);"></span></div>
       <div id="myVoiceBox">
@@ -505,6 +538,7 @@
   </aside>
 
   <main>
+    <img class="deco deco-wave" src="deco/deco-wave.webp" alt="" aria-hidden="true">
     <div class="work-head">
       <h1 class="work-title">把一段文字，交给声音。</h1>
       <p class="work-desc">粘贴小说、散文或故事文本，系统将自动标注每段情绪、分配角色音色并匹配配乐，生成可直接收听的有声成品。</p>
