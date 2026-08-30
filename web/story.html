@@ -40,6 +40,22 @@
     padding: 8px 16px; border-radius: 20px; font-size: .85rem; cursor: pointer; transition: all .15s;
   }
   .tab.active { background: var(--accent-wash); border-color: var(--accent); color: var(--accent); }
+  /* 顶部工具栏：视图切换 / 家长工具 / 年龄筛选 三级分组，按钮规格统一 */
+  .toolbar { padding: 14px 20px 6px; display: flex; flex-direction: column; gap: 10px; }
+  .toolbar-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tb {
+    border: 1px solid var(--line); background: transparent; color: var(--ink-soft);
+    height: 36px; padding: 0 15px; border-radius: 18px; font-size: .84rem;
+    cursor: pointer; transition: all .15s; display: inline-flex; align-items: center;
+    gap: 5px; white-space: nowrap; font-family: inherit;
+  }
+  .tb:hover { border-color: var(--accent); color: var(--ink); }
+  .tb.active { background: var(--accent-wash); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .tb.sm { height: 30px; padding: 0 12px; font-size: .76rem; border-radius: 15px; }
+  .tb.tool { background: var(--card); }
+  .tb.tool:hover { background: var(--card-hi); }
+  .push { margin-left: auto; }
+  .filter-label { font-size: .72rem; color: var(--ink-faint); margin-right: 2px; letter-spacing: .1em; }
   .story-list { padding: 4px 16px; display: grid; gap: 10px; }
   .story-card {
     background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
@@ -238,6 +254,9 @@
     .pl-cover { width: 56vw; }
     .controls { gap: 20px; }
     .ctl.play { width: 68px; height: 68px; }
+    .toolbar { padding: 10px 14px 4px; }
+    .tb { height: 34px; padding: 0 12px; font-size: .8rem; }
+    .tb.sm { height: 28px; padding: 0 10px; font-size: .74rem; }
   }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
 </style>
@@ -250,18 +269,21 @@
 </header>
 
 <div id="list-page">
-  <div class="tabs" id="ageTabs">
-    <button class="tab active" data-age="all">全部</button>
-    <button class="tab" data-age="3-5">3~5 岁</button>
-    <button class="tab" data-age="6-8">6~8 岁</button>
-  </div>
-  <div class="tabs" style="padding-top:0;">
-    <button class="pill" id="clipBtnList">🎵 家长开场 / 结尾</button>
-    <button class="pill" id="parentCenterBtn">📊 家长中心</button>
-  </div>
-  <div class="tabs" id="myTabs" style="display:none;">
-    <button class="tab" id="shelfTab">📚 我的书架</button>
-    <button class="tab" id="histTab">🕘 历史</button>
+  <div class="toolbar">
+    <div class="toolbar-row">
+      <button class="tb active" id="storiesTab">全部故事</button>
+      <button class="tb" id="shelfTab" style="display:none;">📚 我的书架</button>
+      <button class="tb" id="histTab" style="display:none;">🕘 历史</button>
+      <span class="push"></span>
+      <button class="tb tool" id="clipBtnList">🎵 开场 / 结尾</button>
+      <button class="tb tool" id="parentCenterBtn">📊 家长中心</button>
+    </div>
+    <div class="toolbar-row" id="ageTabs">
+      <span class="filter-label">年龄</span>
+      <button class="tb sm active" data-age="all">全部</button>
+      <button class="tb sm" data-age="3-5">3~5 岁</button>
+      <button class="tb sm" data-age="6-8">6~8 岁</button>
+    </div>
   </div>
   <div class="story-list" id="storyList"></div>
   <div id="shelfPage" style="display:none;">
@@ -1464,16 +1486,20 @@ function showView(v) {
   $("shelfPage").style.display = v === "shelf" ? "block" : "none";
   $("histPage").style.display = v === "hist" ? "block" : "none";
   $("ageTabs").style.display = v === "stories" ? "flex" : "none";
+  $("storiesTab").classList.toggle("active", v === "stories");
   $("shelfTab").classList.toggle("active", v === "shelf");
   $("histTab").classList.toggle("active", v === "hist");
 }
+$("storiesTab").onclick = () => showView("stories");
 $("shelfTab").onclick = () => { showView("shelf"); loadShelf(); };
 $("histTab").onclick = () => { showView("hist"); loadHistory(); };
 
 function refreshMyTabs() {
   const auth = getAuth();
-  $("myTabs").style.display = auth && auth.token ? "flex" : "none";
-  if (!(auth && auth.token) && curView !== "stories") showView("stories");
+  const logged = auth && auth.token;
+  $("shelfTab").style.display = logged ? "" : "none";
+  $("histTab").style.display = logged ? "" : "none";
+  if (!logged && curView !== "stories") showView("stories");
 }
 
 function authHeaders() {
@@ -1710,9 +1736,9 @@ $("backBtn").onclick = () => {
 };
 
 /* 年龄筛选 */
-document.querySelectorAll("#ageTabs .tab").forEach(btn => {
+document.querySelectorAll("#ageTabs .tb").forEach(btn => {
   btn.onclick = () => {
-    document.querySelectorAll("#ageTabs .tab").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll("#ageTabs .tb").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     ageFilter = btn.dataset.age;
     renderList();
