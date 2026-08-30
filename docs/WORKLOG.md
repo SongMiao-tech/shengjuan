@@ -182,3 +182,4 @@
 - [ ] 火山控制台开通训练服务 + 扩展音色资源授权。
 - [ ] 正式演示文档 / 录屏素材。
 6. **工作台 AI 装饰素材叠加**（commit 93a3e63）：用户按 A 组提示词生成 3 张素材（琥珀光晕/音波绸带/纸页墨点，1920px PNG 共 1.8MB）→ WebP 压缩（94KB）入库 `web/deco/`；index.html 三处挂载——header 右上光晕、main 标题区波带、aside 面板纸页，统一 multiply 混合 + radial/linear mask 羽化 + pointer-events:none，正文 `> *:not(.deco)` 提升 z-index；900px 断点收紧透明度与尺寸。修掉装饰负偏移导致的移动端 70px 横向溢出（负偏移改贴边+mask 羽化）。
+7. **睡前故事夜间装饰素材叠加**（commit 3c72c13）：按夜间主题提示词生成月晕/星尘/夜云 3 张素材（1.3MB PNG→60KB WebP）→ `web/deco/`；story.html 挂载——列表右上月亮、播放页标题区星尘带、列表底部夜云；暗底用 **screen 混合**（区别于工作台的 multiply）+ mask 羽化 + 正文 z-index 提升；480px 断点收紧。线上 3 素材 200 + 代码 9 处命中。
