@@ -19,3 +19,10 @@ outputs/
 
 # 大文件：曲库不入库（可用 make_bgm_v2.py 重新生成）
 # assets/bgm/*.mp3
+
+# playwright 测试产物
+.playwright-cli/
+snap*.yaml
+gate*.yaml
+pc.yaml
+clip_login.png
