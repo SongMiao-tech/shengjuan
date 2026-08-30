@@ -219,6 +219,16 @@
   .pill:disabled { opacity: .5; pointer-events: none; }
   .cm-save { display: flex; gap: 9px; margin-top: 4px; }
   .cm-save .primary { flex: 1; border-color: var(--accent); color: var(--accent); background: var(--accent-wash); padding: 12px; }
+  /* 收听报告柱状图 */
+  .pc-bar-wrap { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px; height: 100%; }
+  .pc-bar { width: 100%; max-width: 26px; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 3px; }
+  .pc-bar.zero { background: var(--line); }
+  .pc-bar-val { font-size: .56rem; color: var(--ink-soft); }
+  .pc-bar-label { font-size: .58rem; color: var(--ink-faint); white-space: nowrap; }
+  .story-tag.dl { color: var(--ink-soft); background: rgba(184,173,158,.14); }
+  .pc-stat-row { display: flex; justify-content: space-between; gap: 8px; font-size: .74rem; color: var(--ink-soft); padding: 4px 0; border-bottom: 1px dashed var(--line); }
+  .pc-stat-row:last-child { border-bottom: none; }
+  .pc-stat-row .v { color: var(--ink); font-weight: 600; }
 
   @media (max-width: 480px) {
     .pl-cover { width: 56vw; }
@@ -243,6 +253,7 @@
   </div>
   <div class="tabs" style="padding-top:0;">
     <button class="pill" id="clipBtnList">🎵 家长开场 / 结尾</button>
+    <button class="pill" id="parentCenterBtn">📊 家长中心</button>
   </div>
   <div class="tabs" id="myTabs" style="display:none;">
     <button class="tab" id="shelfTab">📚 我的书架</button>
@@ -282,6 +293,8 @@
     <button class="pill" id="timerBtn">⏰ 定时</button>
     <button class="pill" id="parentVoiceBtn">👨‍👩‍👧 爸妈的声音讲</button>
     <button class="pill" id="clipBtn">🎵 开场结尾 · 关</button>
+    <button class="pill" id="offlineBtn">⤓ 离线</button>
+    <button class="pill" id="speakerBtn">🔊 投音箱</button>
   </div>
 
   <div class="extra-row" id="timerOptions" style="display:none;">
@@ -382,6 +395,86 @@
   </div>
 </div>
 
+<!-- 家长中心弹窗 -->
+<div id="parentModal" style="display:none; position:fixed; inset:0; background:rgba(10,8,18,.7); z-index:98; align-items:center; justify-content:center;">
+  <div class="clip-modal-card">
+    <div class="cm-title">📊 家长中心</div>
+    <div class="cm-sub">收听报告 · 时长控制 · 离线缓存 · 投放引导</div>
+
+    <div class="clip-sec">
+      <div class="clip-head"><span class="clip-emoji">⏳</span><span style="font-size:.9rem;font-weight:600;flex:1;">今日收听</span>
+        <span class="clip-status ok" id="pcTodayText">0 分钟</span></div>
+      <div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-bottom:10px;">
+        <div id="pcTodayBar" style="height:100%;background:var(--accent);width:0%;transition:width .3s;border-radius:4px;"></div>
+      </div>
+      <div style="font-size:.7rem;color:var(--ink-faint);margin-bottom:6px;">每日上限（达到后轻轻停止播放）</div>
+      <div class="cm-chips" style="margin-bottom:2px;">
+        <button class="pill pc-limit" data-min="0">不限</button>
+        <button class="pill pc-limit" data-min="15">15 分</button>
+        <button class="pill pc-limit" data-min="30">30 分</button>
+        <button class="pill pc-limit" data-min="45">45 分</button>
+        <button class="pill pc-limit" data-min="60">60 分</button>
+      </div>
+    </div>
+
+    <div class="clip-sec">
+      <div class="clip-head"><span class="clip-emoji">🌙</span><span style="font-size:.9rem;font-weight:600;flex:1;">就寝时段</span></div>
+      <div style="font-size:.7rem;color:var(--ink-faint);margin-bottom:8px;">时段外打开故事会提醒家长确认</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="time" id="pcBedStart" style="flex:1;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:9px;color:var(--ink);font-size:.85rem;">
+        <span style="color:var(--ink-faint);">~</span>
+        <input type="time" id="pcBedEnd" style="flex:1;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:9px;color:var(--ink);font-size:.85rem;">
+      </div>
+    </div>
+
+    <div class="clip-sec">
+      <div class="clip-head"><span class="clip-emoji">📈</span><span style="font-size:.9rem;font-weight:600;flex:1;">近 7 天收听报告</span></div>
+      <div id="pcBars" style="display:flex;align-items:flex-end;gap:6px;height:80px;padding:0 2px;margin-bottom:6px;"></div>
+      <div id="pcStats" style="font-size:.72rem;color:var(--ink-soft);line-height:1.8;">加载中…</div>
+    </div>
+
+    <div class="clip-sec">
+      <div class="clip-head"><span class="clip-emoji">⤓</span><span style="font-size:.9rem;font-weight:600;flex:1;">离线缓存</span>
+        <span class="clip-status" id="pcCacheInfo">0 篇</span></div>
+      <div style="font-size:.7rem;color:var(--ink-faint);line-height:1.7;">在播放页点「⤓ 离线」把故事存进本机，没网也能听</div>
+      <div class="clip-btns"><button class="pill" id="pcCacheClear">🗑️ 清理全部离线缓存</button></div>
+    </div>
+
+    <div class="clip-sec">
+      <div class="clip-head"><span class="clip-emoji">🔊</span><span style="font-size:.9rem;font-weight:600;flex:1;">音箱投放</span></div>
+      <div style="font-size:.7rem;color:var(--ink-faint);line-height:1.7;margin-bottom:9px;">把故事放到客厅音箱 / 电视上播</div>
+      <div class="clip-btns"><button class="pill" id="pcSpeakerBtn" style="border-color:var(--accent);color:var(--accent);">查看投放引导</button></div>
+    </div>
+
+    <div class="cm-save"><button class="pill primary" id="pcClose">关闭</button></div>
+  </div>
+</div>
+
+<!-- 音箱投放引导弹窗 -->
+<div id="speakerModal" style="display:none; position:fixed; inset:0; background:rgba(10,8,18,.7); z-index:98; align-items:center; justify-content:center;">
+  <div class="clip-modal-card">
+    <div class="cm-title">🔊 投放到音箱 / 电视</div>
+    <div class="cm-sub">用系统自带的投放能力，不用额外安装任何东西</div>
+    <div class="clip-sec">
+      <div class="clip-head"><span class="clip-emoji">📶</span><span style="font-size:.88rem;font-weight:600;">蓝牙音箱</span></div>
+      <div style="font-size:.74rem;color:var(--ink-soft);line-height:1.9;">手机「设置 → 蓝牙」→ 配对并连接音箱 → 回到这里点播放，声音就会从音箱出来</div>
+    </div>
+    <div class="clip-sec">
+      <div class="clip-head"><span class="clip-emoji">🍎</span><span style="font-size:.88rem;font-weight:600;">AirPlay / 投屏（iPhone / iPad）</span></div>
+      <div style="font-size:.74rem;color:var(--ink-soft);line-height:1.9;">控制中心 → 「音频投放 / 屏幕镜像」→ 选择音箱或支持 AirPlay 的电视</div>
+    </div>
+    <div class="clip-sec">
+      <div class="clip-head"><span class="clip-emoji">🤖</span><span style="font-size:.88rem;font-weight:600;">安卓投屏</span></div>
+      <div style="font-size:.74rem;color:var(--ink-soft);line-height:1.9;">下拉控制中心 → 「媒体投放 / 智慧投屏」→ 选择同一 Wi-Fi 下的电视 / 音箱</div>
+    </div>
+    <div class="clip-sec">
+      <div class="clip-head"><span class="clip-emoji">💬</span><span style="font-size:.88rem;font-weight:600;">微信里打开时</span></div>
+      <div style="font-size:.74rem;color:var(--ink-soft);line-height:1.9;">点右上角「···」→ 选择「浮窗」后用系统播放器播，或把链接用浏览器打开获得完整投放能力</div>
+    </div>
+    <div class="cm-save"><button class="pill primary" id="spClose">我知道了</button></div>
+  </div>
+</div>
+
 <script>
 /* ───────── 共享基础（与 index.html 同款） ───────── */
 const API = "https://audiobook-api-303602-8-1421728968.sh.run.tcloudbase.com";
@@ -414,7 +507,18 @@ let ageFilter = "all";
 async function loadIndex() {
   try {
     INDEX = await fetch(`${STORY_BASE}/index.json`).then(r => r.json());
-  } catch (e) { INDEX = { stories: [] }; }
+    /* 顺手把索引写进离线缓存，断网时列表还能打开 */
+    try { if ("caches" in window) { const c = await caches.open("story-v1"); await c.put(`${STORY_BASE}/index.json`, new Response(JSON.stringify(INDEX))); } } catch (e) {}
+  } catch (e) {
+    try {
+      if ("caches" in window) {
+        const c = await caches.open("story-v1");
+        const hit = await c.match(`${STORY_BASE}/index.json`);
+        if (hit) { INDEX = await hit.json(); renderList(); return; }
+      }
+    } catch (e2) {}
+    INDEX = { stories: [] };
+  }
   renderList();
 }
 
@@ -443,6 +547,7 @@ function renderList() {
           ${epBadge}
           ${(s.tags || []).slice(0, 2).map(t => `<span class="story-tag">${escapeHtml(t)}</span>`).join("")}
           ${srcTag}
+          ${isCached(s.id) ? `<span class="story-tag dl">⤓ 已离线</span>` : ""}
           ${resume}
         </div>
       </div></div>`;
@@ -567,22 +672,58 @@ function saveProgress(id, posMs, durMs) {
   store.setItem(`sq_prog_${id}`, JSON.stringify({ pos: posMs, dur: durMs, at: Date.now() }));
 }
 
+/* 打开故事：先过家长控制门禁（就寝时段 / 每日上限），再进加载流程 */
 async function openStory(id) {
+  const ctrl = parentCtrl();
+  if (ctrl.limitMin > 0 && listenToday() >= ctrl.limitMin * 60) {
+    return showPvModal("🌙", "今日收听时间已用完",
+      `家长设置了每天最多听 ${ctrl.limitMin} 分钟，明天再来吧。`, "打开家长中心",
+      () => { $("pvModal").style.display = "none"; openParentCenter(); });
+  }
+  const now = new Date();
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const toMin = s => { const a = (s || "20:00").split(":"); return (+a[0]) * 60 + (+a[1]); };
+  const s = toMin(ctrl.bedStart), e2 = toMin(ctrl.bedEnd);
+  const inWin = s <= e2 ? (cur >= s && cur < e2) : (cur >= s || cur < e2);   // 支持跨零点时段
+  if (!inWin) {
+    return showPvModal("🌙", "现在不是故事时间",
+      `就寝时段是 ${ctrl.bedStart} ~ ${ctrl.bedEnd}。家长确认后可以继续播放。`, "仍要播放（家长确认）",
+      () => { $("pvModal").style.display = "none"; _openStoryProceed(id); });
+  }
+  return _openStoryProceed(id);
+}
+
+async function _openStoryProceed(id) {
   const meta = INDEX.stories.find(s => s.id === id);
   if (!meta) return toast("故事数据未找到");
+  flushListen(false);   // 上一段的收听记录先落库
   curStory = meta;
+  /* 正文：在线取，离线回落到 Cache API */
   try { curText = await fetch(`${STORY_BASE}/${id}.json`).then(r => r.json()); }
-  catch (e) { return toast("故事正文加载失败"); }
+  catch (e) {
+    try { const c = await caches.open("story-v1"); const hit = await c.match(`${STORY_BASE}/${id}.json`); if (hit) { curText = await hit.json(); } else throw 0; }
+    catch (e2) { return toast("故事正文加载失败"); }
+  }
   curAudioId = id;
 
-  /* 预生成音频直链；无预生成时走实时生成（提示等待） */
-  let audioUrl = `${AUDIO_BASE}/${id}.mp3`;
+  /* 音频：离线缓存优先，其次预生成直链 */
+  let audioUrl = `${AUDIO_BASE}/${id}.mp3`, fromCache = false;
   try {
-    const head = await fetch(audioUrl, { method: "HEAD" });
-    if (!head.ok) throw new Error("no preset audio");
-  } catch (e) {
-    toast("这篇还没有预生成音频，正在实时生成…（约 1~3 分钟）", 4000);
-    return;   // MVP：实时生成走工作台，此处提示
+    if ("caches" in window) {
+      const c = await caches.open("story-v1");
+      const hit = await c.match(audioUrl);
+      if (hit) { audioUrl = URL.createObjectURL(await hit.blob()); fromCache = true; }
+    }
+  } catch (e) { /* 走网络 */ }
+  if (!fromCache) {
+    if (!navigator.onLine) return toast("当前离线，且这篇还没有离线保存，先连上网吧", 4000);
+    try {
+      const head = await fetch(audioUrl, { method: "HEAD" });
+      if (!head.ok) throw new Error("no preset audio");
+    } catch (e) {
+      toast("这篇还没有预生成音频，正在实时生成…（约 1~3 分钟）", 4000);
+      return;   // MVP：实时生成走工作台，此处提示
+    }
   }
 
   $("list-page").style.display = "none";
@@ -596,6 +737,8 @@ async function openStory(id) {
 
   segTimeline = parseSegments(curText);
   renderTextBox();
+  $("offlineBtn").textContent = isCached(id) ? "✓ 已离线" : "⤓ 离线";
+  $("offlineBtn").classList.toggle("active", isCached(id));
 
   stopClipPlayback();   // 清掉上一条播放链
   chainPending = false;
@@ -613,6 +756,7 @@ async function openStory(id) {
   userPaused = false;
   keepAliveOn();
   clipChainStopped = false;
+  startListenTracking();
   /* 播放顺序：开场语 → 故事正文 → 结尾语（续听时不播开场；缺失的片段静默跳过） */
   if (resumePos) startStoryAt(resumePos);
   else if (clipEnabled("opening")) startClipChain("opening");
@@ -657,6 +801,7 @@ function bindAudioEvents() {
   };
   audio.onended = () => {
     saveProgress(curAudioId, 0, audio.duration * 1000);   // 听完重置
+    flushListen(true);                                    // 收听报告：记一次完整收听
     if (clipChainStopped) return finishChain();
     if (clipEnabled("closing")) return startClipChain("closing");   // 正文结束 → 结尾语
     finishChain();
@@ -695,6 +840,9 @@ $("playBtn").onclick = () => {
     startStoryAt(0);
     return;
   }
+  { const pc = parentCtrl();
+    if (pc.limitMin > 0 && listenToday() >= pc.limitMin * 60)
+      return toast("🌙 今日收听时间已用完，家长可在「家长中心」调整"); }
   if (m.paused) {
     userPaused = false;
     m.play(); $("playBtn").textContent = "❚❚"; $("plCover").classList.add("playing");
@@ -1065,6 +1213,188 @@ function refreshClipPill() {
 }
 
 
+/* ───────── 家长中心：收听报告 + 时长控制 + 离线缓存 ───────── */
+function parentCtrl() {
+  try { return JSON.parse(store.getItem("sqParentCtrl") || "null") || { limitMin: 30, bedStart: "20:00", bedEnd: "21:00" }; }
+  catch (e) { return { limitMin: 30, bedStart: "20:00", bedEnd: "21:00" }; }
+}
+function setParentCtrl(c) { store.setItem("sqParentCtrl", JSON.stringify(c)); }
+function dateStr(off) { const d = new Date(); d.setDate(d.getDate() + off); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function todayStr() { return dateStr(0); }
+function authUidKey() { const a = getAuth(); return (a && a.token) ? (a.username || "anon") : "anon"; }
+function listenToday() {
+  try { const v = JSON.parse(store.getItem("sqListenToday_" + authUidKey()) || "null"); return (v && v.date === todayStr()) ? (v.sec || 0) : 0; }
+  catch (e) { return 0; }
+}
+function addListenToday(sec) {
+  const k = "sqListenToday_" + authUidKey();
+  store.setItem(k, JSON.stringify({ date: todayStr(), sec: listenToday() + sec }));
+}
+function localLogs() { try { return JSON.parse(store.getItem("sqListenLocal") || "[]"); } catch (e) { return []; } }
+function pushLocalLog(row) { const arr = localLogs(); arr.push(row); while (arr.length > 500) arr.shift(); store.setItem("sqListenLocal", JSON.stringify(arr)); }
+
+/* 收听追踪：正文播放每秒累计，30s 增量上报（片段播放不计入） */
+let listenDelta = 0, listenTick = null, restSec = 0, limitHit = false;
+function startListenTracking() {
+  stopListenTracking();
+  listenDelta = 0; restSec = 0; limitHit = false;
+  listenTick = setInterval(() => {
+    if (!audio || audio.paused || userPaused || curClip || !curStory) { restSec = 0; return; }
+    listenDelta++; addListenToday(1); restSec++;
+    const ctrl = parentCtrl();
+    if (ctrl.limitMin > 0 && !limitHit && listenToday() >= ctrl.limitMin * 60) {
+      limitHit = true;
+      gentleStopLimit();
+      toast("🌙 今日收听时间已用完，晚安", 4500);
+    } else if (restSec > 0 && restSec % 1200 === 0) {
+      toast("👀 已经连续听了 20 分钟，休息一下眼睛吧", 4000);
+    }
+  }, 1000);
+}
+function stopListenTracking() { clearInterval(listenTick); listenTick = null; }
+function gentleStopLimit() {
+  const m = activeMedia(); if (!m) return;
+  const sv = m.volume, steps = 16; let n = 0;
+  const iv = setInterval(() => {
+    n++;
+    m.volume = Math.max(0, sv * (1 - n / steps));
+    if (n >= steps) {
+      clearInterval(iv); m.volume = sv; userPaused = true; m.pause();
+      $("playBtn").textContent = "▶"; $("plCover").classList.remove("playing");
+    }
+  }, 300);
+}
+function flushListen(completed, keepalive) {
+  if (!curStory || listenDelta <= 0) return;
+  const row = { story_id: curAudioId || curStory.id, title: curStory.title || "", date: todayStr(),
+    duration_s: listenDelta, completed: !!completed, tags: (curStory.tags || []).slice(0, 4), age_group: curStory.age_group || "" };
+  pushLocalLog(row);
+  const auth = getAuth();
+  if (auth && auth.token) {
+    try {
+      fetch(API + "/me/listen", { method: "POST", keepalive: !!keepalive,
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + auth.token },
+        body: JSON.stringify({ story_id: row.story_id, title: row.title, date: row.date,
+          duration_s: row.duration_s, completed: row.completed, tags: row.tags, age_group: row.age_group })
+      }).catch(() => {});
+    } catch (e) { /* 尽力而为 */ }
+  }
+  listenDelta = 0;
+}
+
+/* 离线缓存（Cache API） */
+function cachedList() { try { return JSON.parse(store.getItem("sqCached") || "[]"); } catch (e) { return []; } }
+function isCached(id) { return cachedList().includes(id); }
+async function cacheCurrentStory() {
+  if (!curAudioId) return;
+  const btn = $("offlineBtn");
+  if (isCached(curAudioId)) return toast("这篇已经离线保存过啦");
+  if (!("caches" in window)) return toast("当前浏览器不支持离线缓存");
+  btn.textContent = "⤓ 保存中…";
+  try {
+    const c = await caches.open("story-v1");
+    await Promise.all([c.add(audio.currentSrc || audio.src), c.add(`${STORY_BASE}/${curAudioId}.json`)]);
+    const l = cachedList();
+    if (!l.includes(curAudioId)) l.push(curAudioId);
+    store.setItem("sqCached", JSON.stringify(l));
+    btn.textContent = "✓ 已离线"; btn.classList.add("active");
+    toast("✓ 已存到本机，没网也能听");
+    renderList();
+  } catch (e) {
+    btn.textContent = "⤓ 离线";
+    toast("离线保存失败：" + String(e).slice(0, 60), 3500);
+  }
+}
+
+/* 家长中心弹窗 */
+function openParentCenter() { renderParentCenter(); $("parentModal").style.display = "flex"; }
+$("parentCenterBtn").onclick = openParentCenter;
+$("pcClose").onclick = () => { $("parentModal").style.display = "none"; };
+$("pcSpeakerBtn").onclick = () => { $("parentModal").style.display = "none"; $("speakerModal").style.display = "flex"; };
+$("speakerBtn").onclick = () => { $("speakerModal").style.display = "flex"; };
+$("spClose").onclick = () => { $("speakerModal").style.display = "none"; };
+
+async function renderParentCenter() {
+  const ctrl = parentCtrl(), t = listenToday();
+  $("pcTodayText").textContent = t < 60 ? t + " 秒" : Math.round(t / 60) + " 分钟";
+  $("pcTodayBar").style.width = ctrl.limitMin > 0 ? Math.min(100, t / (ctrl.limitMin * 60) * 100) + "%" : "0%";
+  document.querySelectorAll(".pc-limit").forEach(b => b.classList.toggle("active", +b.dataset.min === ctrl.limitMin));
+  $("pcBedStart").value = ctrl.bedStart; $("pcBedEnd").value = ctrl.bedEnd;
+  $("pcStats").innerHTML = "加载中…";
+  const logs = await fetchListenLogs(7);
+  renderReport(logs);
+  $("pcCacheInfo").textContent = cachedList().length + " 篇";
+}
+document.querySelectorAll(".pc-limit").forEach(b => {
+  b.onclick = () => {
+    const c = parentCtrl(); c.limitMin = +b.dataset.min; setParentCtrl(c);
+    renderParentCenter();
+    toast(c.limitMin ? "每日上限已设为 " + c.limitMin + " 分钟" : "已取消每日上限");
+  };
+});
+function bindBedTime(id, key) {
+  $(id).addEventListener("change", () => {
+    const c = parentCtrl(); c[key] = $(id).value || c[key]; setParentCtrl(c);
+    toast("就寝时段已更新：" + c.bedStart + " ~ " + c.bedEnd);
+  });
+}
+bindBedTime("pcBedStart", "bedStart");
+bindBedTime("pcBedEnd", "bedEnd");
+$("pcCacheClear").onclick = async () => {
+  if (!cachedList().length) return toast("还没有离线缓存的故事");
+  if (!confirm("确定清理全部离线缓存吗？清理后没网时无法播放这些故事")) return;
+  try { await caches.delete("story-v1"); } catch (e) {}
+  store.setItem("sqCached", "[]");
+  toast("已清理离线缓存");
+  renderParentCenter(); renderList();
+};
+
+async function fetchListenLogs(days) {
+  const a = getAuth();
+  if (a && a.token) {
+    try {
+      const r = await fetch(API + "/me/listen?days=" + days, { headers: authHeaders() });
+      if (r.ok) {
+        const j = await r.json();
+        if (Array.isArray(j.logs)) return j.logs.map(l => ({ date: l.listen_date, story_id: l.story_id,
+          title: l.title, duration_s: l.duration_s, completed: l.completed, tags: l.tags || [] }));
+      }
+    } catch (e) { /* 掉级到本地数据 */ }
+  }
+  const since = dateStr(-(days - 1));
+  return localLogs().filter(l => l.date >= since);
+}
+
+function renderReport(logs) {
+  const days = []; for (let i = 6; i >= 0; i--) days.push(dateStr(-i));
+  const byDate = {}, tagC = {}, storyC = {}; let total = 0, done = 0, cnt = 0;
+  logs.forEach(l => {
+    total += l.duration_s || 0; cnt++; if (l.completed) done++;
+    byDate[l.date] = (byDate[l.date] || 0) + (l.duration_s || 0);
+    (l.tags || []).forEach(t => tagC[t] = (tagC[t] || 0) + 1);
+    const k = l.title || l.story_id; storyC[k] = (storyC[k] || 0) + (l.duration_s || 0);
+  });
+  const max = Math.max(60, ...days.map(d => byDate[d] || 0));
+  $("pcBars").innerHTML = days.map(d => {
+    const v = byDate[d] || 0, mm = Math.round(v / 60);
+    return `<div class="pc-bar-wrap"><span class="pc-bar-val">${mm || ""}</span>` +
+      `<div class="pc-bar ${v ? "" : "zero"}" style="height:${Math.max(Math.round(v / max * 100), 3)}%"></div>` +
+      `<span class="pc-bar-label">${d.slice(5)}</span></div>`;
+  }).join("");
+  const topTags = Object.entries(tagC).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => escapeHtml(e[0]));
+  const topStory = Object.entries(storyC).sort((a, b) => b[1] - a[1])[0];
+  const rate = cnt ? Math.round(done / cnt * 100) : 0;
+  const logged = getAuth() && getAuth().token;
+  $("pcStats").innerHTML =
+    `<div class="pc-stat-row"><span>7 天总收听</span><span class="v">${Math.round(total / 60)} 分钟 · ${cnt} 段</span></div>` +
+    `<div class="pc-stat-row"><span>听完率</span><span class="v">${cnt ? rate + "%" : "—"}</span></div>` +
+    `<div class="pc-stat-row"><span>最爱标签</span><span class="v">${topTags.length ? topTags.join(" / ") : "—"}</span></div>` +
+    `<div class="pc-stat-row"><span>最常听</span><span class="v">${topStory ? escapeHtml(topStory[0].slice(0, 12)) : "—"}</span></div>` +
+    (logged ? "" : `<div style="font-size:.64rem;color:var(--ink-faint);margin-top:6px;">当前仅本机数据，登录后自动跨设备同步</div>`);
+}
+
+/* 音箱投放引导 */
+
 /* ───────── 后台/熄屏播放保活 ───────── */
 /* 静音循环音频占住媒体通道：阻止安卓 WebView 把页面判定为空闲并冻结 */
 const keepAlive = new Audio("data:audio/wav;base64,UklGRhoAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=");
@@ -1083,7 +1413,9 @@ document.addEventListener("visibilitychange", () => {
 document.addEventListener("WeixinJSBridgeReady", () => { keepAliveOn(); }, false);
 window.addEventListener("pagehide", () => {
   if (audio && curAudioId && !curClip) saveProgress(curAudioId, audio.currentTime * 1000, audio.duration * 1000);
+  flushListen(false, true);   // 收听增量随页面隐藏上报
 });
+$("offlineBtn").onclick = cacheCurrentStory;
 
 /* MediaSession 锁屏控制 */
 function setupMediaSession(meta) {
@@ -1140,6 +1472,16 @@ function authHeaders() {
   return auth && auth.token ? { Authorization: `Bearer ${auth.token}` } : {};
 }
 
+/* 内容安全第一层：读本入库/有声化前的敏感词过滤（GLM 改写与输出审核属生产化后端层） */
+const SENSITIVE_WORDS = [
+  "自杀", "自残", "割腕", "上吊", "安眠药自杀", "色情", "裸体", "性爱", "做爱", "一夜情", "约炮", "援交",
+  "吸毒", "冰毒", "大麻", "摇头丸", "赌博", "赌场", "赌资", "枪支买卖", "炸药", "炸弹", "恐怖袭击",
+  "杀人偿命", "虐待儿童", "邪教", "传销", "枪毙", "血腥虐杀"
+];
+function screenText(text) {
+  return SENSITIVE_WORDS.filter(w => (text || "").includes(w));
+}
+
 /* 书架 */
 async function loadShelf() {
   const auth = getAuth();
@@ -1192,6 +1534,8 @@ async function audiobookShelfBook(bookId, title, btn) {
   } catch (e) {}
   btn.disabled = false; btn.textContent = "▶ 有声化";
   if (!book) return toast("读本读取失败");
+  const hits = screenText(book.content);
+  if (hits.length) return toast("该读本含敏感内容（「" + hits.slice(0, 3).join("、") + "」），无法有声化", 4500);
   if (book.chars > 10000) return toast("该读本超 1 万字，请先拆成多个文件分次上传", 4000);
   showView("stories");
   renderCustomStory(book.title, book.content);
@@ -1229,6 +1573,11 @@ $("upCancel").onclick = () => { $("upModal").style.display = "none"; pendingBook
 $("upConfirm").onclick = async () => {
   if (!pendingBook) return;
   const title = ($("upTitle").value || "").trim() || pendingBook.title;
+  const hits = screenText(pendingBook.content);
+  if (hits.length) {
+    $("upModal").style.display = "none"; pendingBook = null;
+    return toast("内容安全检查未通过（含「" + hits.slice(0, 3).join("、") + "」），请修改后再上传", 4500);
+  }
   try {
     const r = await fetch(API + "/me/books", {
       method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -1342,6 +1691,8 @@ async function startCustomRender(title, content) {
 $("backBtn").onclick = () => {
   clipChainStopped = true;
   stopClipPlayback();
+  stopListenTracking();
+  flushListen(false);
   if (audio && curAudioId && !curClip) saveProgress(curAudioId, audio.currentTime * 1000, audio.duration * 1000);
   $("player-page").style.display = "none";
   $("list-page").style.display = "block";

@@ -18,6 +18,7 @@ import uuid
 from pathlib import Path
 
 import requests
+from datetime import datetime, timedelta
 from flask import Flask, jsonify, request
 
 APP = Flask(__name__)
@@ -1410,6 +1411,58 @@ def me_history_add():
         return jsonify({"error": "kind 和 title 必填"}), 400
     _add_history(uid, kind, title, data.get("detail"))
     return jsonify({"ok": True})
+
+
+# ---------- 收听报告（listen_logs：家长端数据源） ----------
+LISTEN_DAYS_MAX = 60
+
+@APP.post("/me/listen")
+def me_listen_add():
+    """上报一段收听（前端按 30s 增量批量上报，尽力而为不阻塞播放）"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    story_id = (data.get("story_id") or "").strip()[:64]
+    title = (data.get("title") or "").strip()[:80]
+    listen_date = (data.get("date") or "").strip()[:10]
+    duration_s = int(data.get("duration_s") or 0)
+    if not story_id or not listen_date or duration_s <= 0:
+        return jsonify({"error": "story_id / date / duration_s 必填"}), 400
+    duration_s = min(duration_s, 3600)
+    row = {"uid": uid, "story_id": story_id, "title": title,
+           "listen_date": listen_date, "duration_s": duration_s,
+           "completed": bool(data.get("completed")),
+           "tags": [str(t)[:16] for t in (data.get("tags") or [])][:8],
+           "age_group": (data.get("age_group") or "").strip()[:8]}
+    try:
+        r = _pg_request("POST", "user_listen_logs", json_body=row)
+        if r.status_code not in (200, 201):
+            return jsonify({"error": f"写入失败: {r.text[:200]}"}), 502
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+    return jsonify({"ok": True})
+
+
+@APP.get("/me/listen")
+def me_listen_list():
+    """查询收听记录（days 天内，供家长端聚合报告）"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    days = min(max(int(request.args.get("days", 14) or 14), 1), LISTEN_DAYS_MAX)
+    since = (datetime.now() - timedelta(days=days - 1)).strftime("%Y-%m-%d")
+    try:
+        r = _pg_request("GET", "user_listen_logs",
+                        params={"uid": f"eq.{uid}", "listen_date": f"gte.{since}",
+                                "select": "story_id,title,listen_date,duration_s,completed,tags,age_group",
+                                "order": "listen_date.desc", "limit": "500"})
+        rows = r.json() if r.status_code == 200 else []
+        return jsonify({"logs": rows, "days": days})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
 
 
 if __name__ == "__main__":
