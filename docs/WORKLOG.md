@@ -181,3 +181,4 @@
 - [ ] Gitee 镜像仓库（需用户提供 Gitee 账号）。
 - [ ] 火山控制台开通训练服务 + 扩展音色资源授权。
 - [ ] 正式演示文档 / 录屏素材。
+6. **工作台 AI 装饰素材叠加**（commit 93a3e63）：用户按 A 组提示词生成 3 张素材（琥珀光晕/音波绸带/纸页墨点，1920px PNG 共 1.8MB）→ WebP 压缩（94KB）入库 `web/deco/`；index.html 三处挂载——header 右上光晕、main 标题区波带、aside 面板纸页，统一 multiply 混合 + radial/linear mask 羽化 + pointer-events:none，正文 `> *:not(.deco)` 提升 z-index；900px 断点收紧透明度与尺寸。修掉装饰负偏移导致的移动端 70px 横向溢出（负偏移改贴边+mask 羽化）。
