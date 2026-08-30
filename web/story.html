@@ -90,6 +90,32 @@
 
   /* ---- 播放页 ---- */
   #player-page { display: none; padding: 0 20px; max-width: 640px; margin: 0 auto; }
+
+  /* ── AI 夜间装饰素材叠加（screen 混合，正文永远在素材之上） ── */
+  #list-page, #player-page { position: relative; }
+  .deco {
+    position: absolute; pointer-events: none; user-select: none;
+    mix-blend-mode: screen; z-index: 0;
+  }
+  #list-page > *:not(.deco), #player-page > *:not(.deco) { position: relative; z-index: 1; }
+  .deco-moon {
+    top: -50px; right: -40px; width: 430px; height: 430px;
+    opacity: .55;
+    -webkit-mask-image: radial-gradient(closest-side, #000 48%, transparent 100%);
+    mask-image: radial-gradient(closest-side, #000 48%, transparent 100%);
+  }
+  .deco-stars {
+    top: 0; left: 0; width: 100%; height: 270px;
+    object-fit: cover; object-position: center top; opacity: .5;
+    -webkit-mask-image: linear-gradient(to bottom, #000 30%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 30%, transparent 100%);
+  }
+  .deco-clouds {
+    bottom: 0; left: 0; width: 100%; height: 420px;
+    object-fit: cover; object-position: center bottom; opacity: .55;
+    -webkit-mask-image: linear-gradient(to top, #000 35%, transparent 100%);
+    mask-image: linear-gradient(to top, #000 35%, transparent 100%);
+  }
   .back-row { display: flex; align-items: center; padding: 14px 0; }
   .back-btn {
     background: none; border: none; color: var(--ink-soft); font-size: .9rem;
@@ -257,6 +283,9 @@
     .toolbar { padding: 10px 14px 4px; }
     .tb { height: 34px; padding: 0 12px; font-size: .8rem; }
     .tb.sm { height: 28px; padding: 0 10px; font-size: .74rem; }
+    .deco-moon { width: 300px; height: 300px; top: -40px; right: -30px; opacity: .45; }
+    .deco-stars { height: 200px; opacity: .4; }
+    .deco-clouds { height: 320px; opacity: .45; }
   }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
 </style>
@@ -269,6 +298,7 @@
 </header>
 
 <div id="list-page">
+  <img class="deco deco-moon" src="deco/night-moon.webp" alt="" aria-hidden="true">
   <div class="toolbar">
     <div class="toolbar-row">
       <button class="tb active" id="storiesTab">全部故事</button>
@@ -294,9 +324,11 @@
     <div id="shelfList"></div>
   </div>
   <div id="histPage" style="display:none;"><div id="histList"></div></div>
+  <img class="deco deco-clouds" src="deco/night-clouds.webp" alt="" aria-hidden="true">
 </div>
 
 <div id="player-page">
+  <img class="deco deco-stars" src="deco/night-stardust.webp" alt="" aria-hidden="true">
   <div class="back-row"><button class="back-btn" id="backBtn">← 故事架</button></div>
   <div class="pl-title" id="plTitle"></div>
   <div class="pl-sub" id="plSub"></div>
