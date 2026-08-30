@@ -51,6 +51,10 @@
   .story-emoji {
     width: 52px; height: 52px; border-radius: 12px; background: var(--accent-wash);
     display: flex; align-items: center; justify-content: center; font-size: 1.7rem; flex-shrink: 0;
+    overflow: hidden;
+  }
+  .story-emoji img, .pl-cover img {
+    width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block;
   }
   .story-info { flex: 1; min-width: 0; }
   .story-title { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
@@ -496,6 +500,8 @@ function fmtTime(sec) {
 /* 封面 emoji：按 id 稳定选取 */
 const COVERS = ["🐰", "🐻", "🦊", "🌙", "⭐", "🐢", "🦆", "🧸", "🐷", "🦔", "🍓", "🐯", "🐴", "🐑", "🦉"];
 const coverOf = id => COVERS[[...id].reduce((a, c) => a + c.charCodeAt(0), 0) % COVERS.length];
+/* AI 生成封面：covers/{id}.webp，加载失败回退 emoji */
+const coverImg = (id, fb) => `<img src="covers/${id}.webp" alt="" loading="lazy" onerror="this.parentElement.textContent='${fb || coverOf(id)}'">`;
 
 /* ───────── 故事库 ───────── */
 const STORY_BASE = "stories", AUDIO_BASE = "audio";
@@ -539,7 +545,7 @@ function renderList() {
       ? `<span class="story-tag ep">第 ${s.episode} 集</span>` : "";
     const srcTag = s.source ? `<span class="story-src">改编自 ${escapeHtml(s.source.split("/")[0])}</span>` : "";
     return `${seriesBar}<div class="story-card" data-id="${s.id}">
-      <div class="story-emoji">${coverOf(s.id)}</div>
+      <div class="story-emoji">${coverImg(s.id)}</div>
       <div class="story-info">
         <div class="story-title">${s.series && s.series !== "单篇" ? `${escapeHtml(s.series)}·` : ""}${escapeHtml(s.title.replace((s.series || "") + "①", "").replace((s.series || "") + "②", "").replace((s.series || "") + "③", ""))}</div>
         <div class="story-meta">
@@ -732,7 +738,7 @@ async function _openStoryProceed(id) {
   const seriesText = (meta.series && meta.series !== "单篇")
     ? `《${meta.series}》第 ${meta.episode} 集 · ` : "";
   $("plSub").textContent = `${meta.age_group} 岁 · ${seriesText}${(meta.tags || []).join(" / ")}`;
-  $("plCover").textContent = coverOf(id);
+  $("plCover").innerHTML = coverImg(id);
   window.scrollTo(0, 0);
 
   segTimeline = parseSegments(curText);
@@ -1422,9 +1428,12 @@ function setupMediaSession(meta) {
   if (!("mediaSession" in navigator)) return;
   navigator.mediaSession.metadata = new MediaMetadata({
     title: meta.title, artist: "声卷 · 晚安故事",
-    artwork: [{ src: "data:image/svg+xml," + encodeURIComponent(
-      `<svg xmlns='http://www.w3.org/2000/svg' width='192' height='192'><rect width='192' height='192' rx='36' fill='%23232030'/><text x='96' y='120' font-size='96' text-anchor='middle'>${coverOf(meta.id)}</text></svg>`),
-      sizes: "192x192", type: "image/svg+xml" }]
+    artwork: [
+      { src: new URL(`covers/${meta.id}.webp`, location.href).href, sizes: "512x512", type: "image/webp" },
+      { src: "data:image/svg+xml," + encodeURIComponent(
+        `<svg xmlns='http://www.w3.org/2000/svg' width='192' height='192'><rect width='192' height='192' rx='36' fill='%23232030'/><text x='96' y='120' font-size='96' text-anchor='middle'>${coverOf(meta.id)}</text></svg>`),
+        sizes: "192x192", type: "image/svg+xml" }
+    ]
   });
   navigator.mediaSession.setActionHandler("play", () => { userPaused = false; const m = activeMedia(); if (m) m.play().catch(() => {}); });
   navigator.mediaSession.setActionHandler("pause", () => { userPaused = true; const m = activeMedia(); if (m) m.pause(); });
