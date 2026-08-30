@@ -508,6 +508,22 @@
   </div>
 </div>
 
+<!-- 就寝时段家长密码解锁弹窗 -->
+<div id="gateModal" style="display:none; position:fixed; inset:0; background:rgba(10,8,18,.7); z-index:99; align-items:center; justify-content:center;">
+  <div class="clip-modal-card" style="max-width:340px;">
+    <div class="cm-title">🌙 现在不是故事时间</div>
+    <div class="cm-sub" id="gateSub"></div>
+    <div style="font-size:.72rem;color:var(--ink-faint);margin-bottom:10px;" id="gateUser"></div>
+    <input type="password" id="gatePwd" placeholder="家长密码" autocomplete="current-password"
+      style="width:100%; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:11px 12px; color:var(--ink); font-size:.9rem; outline:none;">
+    <div style="font-size:.7rem;color:var(--danger);min-height:16px;margin:6px 0 2px;" id="gateErr"></div>
+    <div class="cm-save">
+      <button class="pill primary" id="gateUnlock">🔓 解锁播放</button>
+      <button class="pill" id="gateCancel" style="padding:12px;">取消</button>
+    </div>
+  </div>
+</div>
+
 <!-- 音箱投放引导弹窗 -->
 <div id="speakerModal" style="display:none; position:fixed; inset:0; background:rgba(10,8,18,.7); z-index:98; align-items:center; justify-content:center;">
   <div class="clip-modal-card">
@@ -746,12 +762,60 @@ async function openStory(id) {
   const s = toMin(ctrl.bedStart), e2 = toMin(ctrl.bedEnd);
   const inWin = s <= e2 ? (cur >= s && cur < e2) : (cur >= s || cur < e2);   // 支持跨零点时段
   if (!inWin) {
-    return showPvModal("🌙", "现在不是故事时间",
-      `就寝时段是 ${ctrl.bedStart} ~ ${ctrl.bedEnd}。家长确认后可以继续播放。`, "仍要播放（家长确认）",
-      () => { $("pvModal").style.display = "none"; _openStoryProceed(id); });
+    return requireParentUnlock(() => _openStoryProceed(id));
   }
   return _openStoryProceed(id);
 }
+
+/* 就寝时段外解锁：需输入家长密码（走 /auth/login 校验） */
+let gateCallback = null;
+function requireParentUnlock(onPass) {
+  const auth = getAuth();
+  if (!auth || !auth.token || !auth.username) {
+    return showPvModal("🔒", "需要家长身份验证",
+      "就寝时段外播放需要验证家长密码，请先登录声卷账号。",
+      "去登录 / 注册", () => location.href = "index.html");
+  }
+  const ctrl = parentCtrl();
+  $("gateSub").textContent = `就寝时段 ${ctrl.bedStart} ~ ${ctrl.bedEnd} 之外，需输入家长密码解锁`;
+  $("gateUser").textContent = "家长：" + auth.username;
+  $("gatePwd").value = "";
+  $("gateErr").textContent = "";
+  gateCallback = onPass;
+  $("gateModal").style.display = "flex";
+  setTimeout(() => $("gatePwd").focus(), 50);
+}
+async function tryGateUnlock() {
+  const pwd = $("gatePwd").value;
+  if (!pwd) { $("gateErr").textContent = "请输入密码"; return; }
+  const btn = $("gateUnlock");
+  btn.disabled = true;
+  $("gateErr").textContent = "";
+  try {
+    const r = await fetch(API + "/auth/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: getAuth().username, password: pwd })
+    });
+    if (r.ok) {
+      $("gateModal").style.display = "none";
+      $("gatePwd").value = "";
+      const cb = gateCallback; gateCallback = null;
+      if (cb) cb();
+    } else {
+      $("gateErr").textContent = "密码错误，请重试";
+    }
+  } catch (e) {
+    $("gateErr").textContent = "网络异常，请稍后重试";
+  }
+  btn.disabled = false;
+}
+$("gateUnlock").onclick = tryGateUnlock;
+$("gateCancel").onclick = () => {
+  $("gateModal").style.display = "none";
+  $("gatePwd").value = ""; $("gateErr").textContent = "";
+  gateCallback = null;
+};
+$("gatePwd").addEventListener("keydown", e => { if (e.key === "Enter") tryGateUnlock(); });
 
 async function _openStoryProceed(id) {
   const meta = INDEX.stories.find(s => s.id === id);
