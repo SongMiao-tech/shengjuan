@@ -771,14 +771,14 @@ async function openStory(id) {
 let gateCallback = null;
 function requireParentUnlock(onPass) {
   const auth = getAuth();
-  if (!auth || !auth.token || !auth.username) {
+  if (!auth || !auth.token || !(auth.name || auth.username)) {
     return showPvModal("🔒", "需要家长身份验证",
       "就寝时段外播放需要验证家长密码，请先登录声卷账号。",
       "去登录 / 注册", () => location.href = "index.html");
   }
   const ctrl = parentCtrl();
   $("gateSub").textContent = `就寝时段 ${ctrl.bedStart} ~ ${ctrl.bedEnd} 之外，需输入家长密码解锁`;
-  $("gateUser").textContent = "家长：" + auth.username;
+  $("gateUser").textContent = "家长：" + (auth.name || auth.username);
   $("gatePwd").value = "";
   $("gateErr").textContent = "";
   gateCallback = onPass;
@@ -794,7 +794,7 @@ async function tryGateUnlock() {
   try {
     const r = await fetch(API + "/auth/login", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: getAuth().username, password: pwd })
+      body: JSON.stringify({ username: getAuth().name || getAuth().username, password: pwd })
     });
     if (r.ok) {
       $("gateModal").style.display = "none";
@@ -1345,7 +1345,7 @@ function parentCtrl() {
 function setParentCtrl(c) { store.setItem("sqParentCtrl", JSON.stringify(c)); }
 function dateStr(off) { const d = new Date(); d.setDate(d.getDate() + off); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 function todayStr() { return dateStr(0); }
-function authUidKey() { const a = getAuth(); return (a && a.token) ? (a.username || "anon") : "anon"; }
+function authUidKey() { const a = getAuth(); return (a && a.token) ? (a.name || a.username || "anon") : "anon"; }
 function listenToday() {
   try { const v = JSON.parse(store.getItem("sqListenToday_" + authUidKey()) || "null"); return (v && v.date === todayStr()) ? (v.sec || 0) : 0; }
   catch (e) { return 0; }
