@@ -204,6 +204,16 @@
 - **根因**：health 端点不跑实际 LLM/TTS 链路。
 - **规避**：每次关键密钥或模型变更后，必须提交一个真实文本任务并检查完整输出。
 
+### 7.19 测试：playwright-cli eval 的时序陷阱
+
+- **现象**：用 eval 逐条断言短时序（如 4~7 秒的开场片段）时永远"错过窗口"，误判功能失效；`$()` 在 bash 双引号中被插值导致命令静默变形。
+- **根因**：每次 playwright-cli 调用有 1~2s 延迟；`$`/反引号会被 shell 提前解释。
+- **规避**：
+  1. 点击与采样必须放进**同一个 eval**（页面内 setTimeout 定时采样）。
+  2. eval 代码避免 `$()`、反引号，用 `document.getElementById`。
+  3. 原型链 hook（`HTMLMediaElement.prototype.play`）必须先存 `__orig` 再覆盖，否则自递归会冻死页面。
+  4. 本地 `python http.server` 不支持 Range 请求，seek 会触发媒体错误并被 keep-alive 自动恢复机制从 0 续播——验证 seek/断点行为要用支持 Range 的服务器或生产环境。
+
 ---
 
 ## 8. 文件清单

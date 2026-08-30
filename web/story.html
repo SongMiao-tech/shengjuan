@@ -176,6 +176,50 @@
   }
   #toast.on { opacity: 1; }
 
+  /* ---- 家长开场/结尾 ---- */
+  .clip-modal-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 22px 20px; max-width: 400px; width: 92vw; max-height: 86vh; overflow-y: auto;
+  }
+  .cm-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; }
+  .cm-sub { font-size: .72rem; color: var(--ink-faint); margin-bottom: 14px; line-height: 1.6; }
+  .cm-switch-row {
+    display: flex; align-items: center; gap: 10px; background: var(--bg);
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px;
+  }
+  .cm-switch-row .lab { font-size: .88rem; font-weight: 600; }
+  .cm-switch-row .hint { font-size: .68rem; color: var(--ink-faint); margin-top: 2px; line-height: 1.5; }
+  .switch { position: relative; width: 46px; height: 26px; flex-shrink: 0; }
+  .switch input { display: none; }
+  .switch .sl { position: absolute; inset: 0; background: var(--line); border-radius: 13px; transition: background .2s; cursor: pointer; display: block; }
+  .switch .sl::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--ink-soft); transition: all .2s; }
+  .switch input:checked + .sl { background: var(--accent); }
+  .switch input:checked + .sl::after { left: 23px; background: #1c1a24; }
+  .cm-chips { display: flex; gap: 8px; margin-bottom: 14px; }
+  .clip-sec { border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; margin-bottom: 12px; background: var(--bg); }
+  .clip-head { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+  .clip-emoji { font-size: 1.1rem; }
+  .clip-name {
+    flex: 1; min-width: 0; background: transparent; border: none; border-bottom: 1px dashed var(--line);
+    color: var(--ink); font-size: .9rem; font-weight: 600; padding: 3px 2px; outline: none; font-family: inherit;
+  }
+  .clip-name:focus { border-bottom-color: var(--accent); }
+  .clip-status { font-size: .68rem; color: var(--ink-faint); white-space: nowrap; flex-shrink: 0; }
+  .clip-status.ok { color: var(--accent); }
+  .clip-status.warn { color: var(--danger); }
+  .clip-text {
+    width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; color: var(--ink); font-size: .86rem; line-height: 1.7; resize: none;
+    height: 64px; outline: none; font-family: inherit;
+  }
+  .clip-text:focus { border-color: var(--accent); }
+  .clip-count { text-align: right; font-size: .64rem; color: var(--ink-faint); margin-top: 3px; }
+  .clip-btns { display: flex; gap: 8px; margin-top: 9px; flex-wrap: wrap; }
+  .clip-btns .pill { padding: 7px 13px; font-size: .74rem; }
+  .pill:disabled { opacity: .5; pointer-events: none; }
+  .cm-save { display: flex; gap: 9px; margin-top: 4px; }
+  .cm-save .primary { flex: 1; border-color: var(--accent); color: var(--accent); background: var(--accent-wash); padding: 12px; }
+
   @media (max-width: 480px) {
     .pl-cover { width: 56vw; }
     .controls { gap: 20px; }
@@ -196,6 +240,9 @@
     <button class="tab active" data-age="all">全部</button>
     <button class="tab" data-age="3-5">3~5 岁</button>
     <button class="tab" data-age="6-8">6~8 岁</button>
+  </div>
+  <div class="tabs" style="padding-top:0;">
+    <button class="pill" id="clipBtnList">🎵 家长开场 / 结尾</button>
   </div>
   <div class="tabs" id="myTabs" style="display:none;">
     <button class="tab" id="shelfTab">📚 我的书架</button>
@@ -234,6 +281,7 @@
     <button class="pill" id="speedBtn">语速 1.0×</button>
     <button class="pill" id="timerBtn">⏰ 定时</button>
     <button class="pill" id="parentVoiceBtn">👨‍👩‍👧 爸妈的声音讲</button>
+    <button class="pill" id="clipBtn">🎵 开场结尾 · 关</button>
   </div>
 
   <div class="extra-row" id="timerOptions" style="display:none;">
@@ -275,6 +323,61 @@
     <div id="pvActions" style="display:flex; flex-direction:column; gap:9px;">
       <button class="pill" id="pvGo" style="border-color:var(--accent); color:var(--accent); background:var(--accent-wash); padding:11px;">去工作台生成「我的声音」</button>
       <button class="pill" id="pvCancel" style="padding:11px;">先不了</button>
+    </div>
+  </div>
+</div>
+
+<!-- 家长开场/结尾弹窗 -->
+<div id="clipModal" style="display:none; position:fixed; inset:0; background:rgba(10,8,18,.7); z-index:98; align-items:center; justify-content:center;">
+  <div class="clip-modal-card">
+    <div class="cm-title">🎵 家长开场 / 结尾</div>
+    <div class="cm-sub" id="cmVoiceLine">用「我的音色」录制宝贝专属的开场与晚安语</div>
+
+    <div class="cm-switch-row">
+      <div style="flex:1;">
+        <div class="lab">启用开场 / 结尾</div>
+        <div class="hint">开启后按「开场语 → 故事 → 结尾语」连续播放<br>未合成的片段会自动跳过，不打断收听</div>
+      </div>
+      <label class="switch"><input type="checkbox" id="cmMaster"><span class="sl"></span></label>
+    </div>
+    <div class="cm-chips">
+      <button class="pill cm-k" id="cmChipOpening">🌅 开场</button>
+      <button class="pill cm-k" id="cmChipClosing">🌙 结尾</button>
+    </div>
+
+    <div class="clip-sec">
+      <div class="clip-head">
+        <span class="clip-emoji">🌅</span>
+        <input class="clip-name" id="cmNameOpening" maxlength="12" placeholder="开场语">
+        <span class="clip-status" id="cmStOpening">未填写</span>
+      </div>
+      <textarea class="clip-text" id="cmTextOpening" maxlength="100" placeholder="例：宝贝，今晚妈妈给你讲一个小兔子的故事，快闭上眼睛吧～"></textarea>
+      <div class="clip-count" id="cmCntOpening">0 / 100</div>
+      <div class="clip-btns">
+        <button class="pill" id="cmSynthOpening">🎙️ 合成</button>
+        <button class="pill" id="cmPlayOpening">▶ 试听</button>
+        <button class="pill" id="cmDelOpening">🗑️ 删除</button>
+      </div>
+    </div>
+
+    <div class="clip-sec">
+      <div class="clip-head">
+        <span class="clip-emoji">🌙</span>
+        <input class="clip-name" id="cmNameClosing" maxlength="12" placeholder="结束语">
+        <span class="clip-status" id="cmStClosing">未填写</span>
+      </div>
+      <textarea class="clip-text" id="cmTextClosing" maxlength="100" placeholder="例：故事讲完啦，闭上眼睛，做个甜甜的梦，晚安～"></textarea>
+      <div class="clip-count" id="cmCntClosing">0 / 100</div>
+      <div class="clip-btns">
+        <button class="pill" id="cmSynthClosing">🎙️ 合成</button>
+        <button class="pill" id="cmPlayClosing">▶ 试听</button>
+        <button class="pill" id="cmDelClosing">🗑️ 删除</button>
+      </div>
+    </div>
+
+    <div class="cm-save">
+      <button class="pill primary" id="cmSave">💾 保存</button>
+      <button class="pill" id="cmClose" style="padding:12px;">关闭</button>
     </div>
   </div>
 </div>
@@ -354,6 +457,109 @@ let sleepTimer = null, sleepFade = null;
 let sleepMinutes = 0;
 let playRate = 1.0;
 
+/* 家长开场/结尾播放链状态 */
+let clipAudio = null;            // 开场/结尾音频（独立于故事 audio）
+let curClip = null;              // 'opening' | 'closing' | null —— 当前是否在播片段
+let clipChainStopped = false;    // 定时停止等触发后不再接续播放
+let clipBusyKind = null;         // 正在合成的片段 kind
+let chainPending = false;        // 片段播完但用户已暂停：等用户按播放再接正文
+let clipDraft = null;            // 编辑弹窗草稿
+let clipVoice = null;            // 「我的音色」缓存
+let previewAudio = null;         // 弹窗内试听
+
+function getClipSwitch() {
+  try { return JSON.parse(store.getItem("sqClipSwitch") || "null") || { on: false, opening: true, closing: true }; }
+  catch (e) { return { on: false, opening: true, closing: true }; }
+}
+function setClipSwitch(s) { store.setItem("sqClipSwitch", JSON.stringify(s)); }
+function getClips() {
+  try { return JSON.parse(store.getItem("sqClips") || "null") || { opening: null, closing: null }; }
+  catch (e) { return { opening: null, closing: null }; }
+}
+function setClips(c) { try { store.setItem("sqClips", JSON.stringify(c)); return true; } catch (e) { return false; } }
+
+/* 当前正在播放的媒体（片段或故事正文） */
+function activeMedia() { return (curClip && clipAudio) ? clipAudio : audio; }
+
+/* 某片段是否应参与播放（总开关 + 细分开关 + 已合成） */
+function clipEnabled(kind) {
+  const sw = getClipSwitch();
+  const c = getClips()[kind];
+  return !!(sw.on && sw[kind] && c && c.b64);
+}
+
+function stopClipPlayback() {
+  curClip = null;
+  chainPending = false;
+  if (clipAudio) {
+    clipAudio.onended = null; clipAudio.onpause = null; clipAudio.ontimeupdate = null;
+    clipAudio.pause(); clipAudio.src = "";
+  }
+}
+
+/* 片段播放结束后的统一收尾 */
+function finishChain() {
+  userPaused = true;
+  $("playBtn").textContent = "▶";
+  $("plCover").classList.remove("playing");
+  if (sleepTimer) { clearSleepTimer(); toast("🌙 定时时间到，晚安"); }
+}
+
+/* 播放一段开场/结尾；缺失时静默跳到故事正文 */
+function startClipChain(kind) {
+  const c = getClips()[kind];
+  if (!c || !c.b64) return startStoryAt(0);
+  if (!clipAudio) clipAudio = new Audio();
+  bindClipEvents();   // stopClipPlayback 会清掉事件绑定，每次挂链前重绑
+  curClip = kind;
+  clipAudio.src = "data:audio/mpeg;base64," + c.b64;
+  clipAudio.playbackRate = playRate;
+  clipAudio.play().catch(() => {});   // 自动播放被拦时，用户点播放键即可（playBtn 已指向 clipAudio）
+  $("playBtn").textContent = "❚❚";
+  $("plCover").classList.add("playing");
+  toast((kind === "opening" ? "🌅 " : "🌙 ") + (c.name || (kind === "opening" ? "开场语" : "结束语")), 1800);
+}
+
+/* 开始播放故事正文（pos=0 或续听位置） */
+function startStoryAt(pos) {
+  curClip = null;
+  if (pos) audio.currentTime = pos;
+  audio.play().catch(() => {});
+  $("playBtn").textContent = "❚❚";
+  $("plCover").classList.add("playing");
+}
+
+function bindClipEvents() {
+  clipAudio.ontimeupdate = () => {
+    if (!clipAudio.duration) return;
+    const pct = (clipAudio.currentTime / clipAudio.duration) * 100;
+    $("tFill").style.width = pct + "%";
+    $("tKnob").style.left = pct + "%";
+    $("tCur").textContent = fmtTime(clipAudio.currentTime);
+    $("tDur").textContent = fmtTime(clipAudio.duration);
+  };
+  /* 熄屏保活：与故事 audio 同款自动恢复逻辑 */
+  clipAudio.onpause = () => {
+    if (userPaused || clipAudio.ended) return;
+    const pos = clipAudio.currentTime;
+    const tryResume = (n) => {
+      if (userPaused) return;
+      clipAudio.play().then(() => { if (Math.abs(clipAudio.currentTime - pos) > 2) clipAudio.currentTime = pos; })
+                      .catch(() => { if (n < 8) setTimeout(() => tryResume(n + 1), 5000); });
+    };
+    setTimeout(() => tryResume(0), 300);
+  };
+  clipAudio.onended = () => {
+    const kind = curClip; curClip = null;
+    if (clipChainStopped) return finishChain();
+    if (kind === "opening") {
+      if (userPaused) { chainPending = true; $("playBtn").textContent = "▶"; $("plCover").classList.remove("playing"); return; }
+      return startStoryAt(0);   // 开场结束 → 正文
+    }
+    finishChain();                                     // 结尾结束 → 收尾
+  };
+}
+
 function getProgress(id) {
   try { return JSON.parse(store.getItem(`sq_prog_${id}`) || "null"); } catch { return null; }
 }
@@ -391,6 +597,8 @@ async function openStory(id) {
   segTimeline = parseSegments(curText);
   renderTextBox();
 
+  stopClipPlayback();   // 清掉上一条播放链
+  chainPending = false;
   if (audio) { audio.pause(); audio.src = ""; }
   audio = new Audio(audioUrl);
   audio.preload = "auto";
@@ -399,16 +607,16 @@ async function openStory(id) {
   setupMediaSession(meta);
 
   const prog = getProgress(id);
-  if (prog && prog.pos > 30000) {
-    audio.currentTime = prog.pos / 1000;
-    toast(`从上次的位置继续 · ${fmtTime(prog.pos / 1000)}`);
-  }
+  const resumePos = (prog && prog.pos > 30000) ? prog.pos / 1000 : 0;
+  if (resumePos) toast(`从上次的位置继续 · ${fmtTime(resumePos)}`);
   applySleepTimer();
   userPaused = false;
   keepAliveOn();
-  audio.play().catch(() => {});
-  $("playBtn").textContent = "❚❚";
-  $("plCover").classList.add("playing");
+  clipChainStopped = false;
+  /* 播放顺序：开场语 → 故事正文 → 结尾语（续听时不播开场；缺失的片段静默跳过） */
+  if (resumePos) startStoryAt(resumePos);
+  else if (clipEnabled("opening")) startClipChain("opening");
+  else startStoryAt(0);
 }
 
 /* 段落 → 时间轴（预生成 seg JSON 优先，回退字数估算） */
@@ -448,11 +656,10 @@ function bindAudioEvents() {
     setTimeout(() => tryResume(0), 300);
   };
   audio.onended = () => {
-    userPaused = true;   // 自然播完不自动恢复
-    $("playBtn").textContent = "▶";
-    $("plCover").classList.remove("playing");
     saveProgress(curAudioId, 0, audio.duration * 1000);   // 听完重置
-    if (sleepTimer) { clearSleepTimer(); toast("🌙 定时时间到，晚安"); }
+    if (clipChainStopped) return finishChain();
+    if (clipEnabled("closing")) return startClipChain("closing");   // 正文结束 → 结尾语
+    finishChain();
   };
 }
 
@@ -466,10 +673,11 @@ function renderTextBox() {
   const track = $("track");
   let seeking = false;
   const seekTo = e => {
-    if (!audio || !audio.duration) return;
+    const m = activeMedia();
+    if (!m || !m.duration) return;
     const rect = track.getBoundingClientRect();
     const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-    audio.currentTime = ratio * audio.duration;
+    m.currentTime = ratio * m.duration;
   };
   track.addEventListener("pointerdown", e => { seeking = true; track.setPointerCapture(e.pointerId); seekTo(e); });
   track.addEventListener("pointermove", e => { if (seeking) seekTo(e); });
@@ -479,22 +687,30 @@ function renderTextBox() {
 /* 播放控制 */
 let userPaused = false;   // 区分「用户主动暂停」与「浏览器熄屏自动暂停」
 $("playBtn").onclick = () => {
-  if (!audio) return;
-  if (audio.paused) {
+  const m = activeMedia();
+  if (!m) return;
+  if (chainPending && !curClip) {          // 片段已播完但用户暂停中：接播正文
+    chainPending = false;
     userPaused = false;
-    audio.play(); $("playBtn").textContent = "❚❚"; $("plCover").classList.add("playing");
+    startStoryAt(0);
+    return;
+  }
+  if (m.paused) {
+    userPaused = false;
+    m.play(); $("playBtn").textContent = "❚❚"; $("plCover").classList.add("playing");
   } else {
     userPaused = true; keepAliveOff();
-    audio.pause(); $("playBtn").textContent = "▶"; $("plCover").classList.remove("playing");
+    m.pause(); $("playBtn").textContent = "▶"; $("plCover").classList.remove("playing");
   }
 };
-$("rewBtn").onclick = () => { if (audio) audio.currentTime = Math.max(0, audio.currentTime - 15); };
-$("fwdBtn").onclick = () => { if (audio) audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 30); };
+$("rewBtn").onclick = () => { const m = activeMedia(); if (m) m.currentTime = Math.max(0, m.currentTime - 15); };
+$("fwdBtn").onclick = () => { const m = activeMedia(); if (m) m.currentTime = Math.min(m.duration || 0, m.currentTime + 30); };
 
 $("speedBtn").onclick = () => {
   const rates = [0.8, 1.0, 1.25];
   playRate = rates[(rates.indexOf(playRate) + 1) % rates.length];
   if (audio) audio.playbackRate = playRate;
+  if (clipAudio) clipAudio.playbackRate = playRate;
   $("speedBtn").textContent = `语速 ${playRate.toFixed(2).replace(/0$/, "")}×`.replace("1.0×", "1.0×").replace("0.80×","0.8×").replace("1.25×","1.25×");
   $("speedBtn").classList.toggle("active", playRate !== 1.0);
 };
@@ -524,14 +740,20 @@ function applySleepTimer() {
 }
 function clearSleepTimer() { clearTimeout(sleepTimer); clearInterval(sleepFade); sleepTimer = sleepFade = null; }
 function startFadeOut() {
-  if (!audio) return;
-  const startVol = audio.volume, steps = 60, interval = 30000 / steps;
+  const m = activeMedia();
+  if (!m) return;
+  const startVol = m.volume, steps = 60, interval = 30000 / steps;
   let n = 0;
   sleepFade = setInterval(() => {
     n++;
-    audio.volume = Math.max(0, startVol * (1 - n / steps));
-    if (n >= steps) { clearInterval(sleepFade); userPaused = true; audio.pause(); audio.volume = startVol;
-      $("playBtn").textContent = "▶"; $("plCover").classList.remove("playing"); toast("🌙 晚安"); }
+    m.volume = Math.max(0, startVol * (1 - n / steps));
+    if (n >= steps) {
+      clearInterval(sleepFade);
+      clipChainStopped = true;   // 定时停止后不再接续开场/结尾链
+      userPaused = true;
+      m.pause(); m.volume = startVol;
+      $("playBtn").textContent = "▶"; $("plCover").classList.remove("playing"); toast("🌙 晚安");
+    }
   }, interval);
 }
 
@@ -610,11 +832,9 @@ async function startParentVoiceRender(voice) {
     const segs = st.segments || [];
     if (segs.length && segs.every(s => "start_ms" in s)) segTimeline = segs;
     renderTextBox();
-    audio.currentTime = 0;
-    audio.play().catch(() => {});
-    $("playBtn").textContent = "❚❚";
-    $("plCover").classList.add("playing");
-    toast("✨ 爸妈的声音版好啦，正在播放");
+    clipChainStopped = false;
+    if (clipEnabled("opening")) { toast("✨ 爸妈的声音版好啦"); startClipChain("opening"); }
+    else { startStoryAt(0); toast("✨ 爸妈的声音版好啦，正在播放"); }
   } catch (e) {
     toast("录制失败：" + String(e.message || e).slice(0, 80), 4000);
   } finally {
@@ -623,6 +843,228 @@ async function startParentVoiceRender(voice) {
   }
 }
 
+/* ───────── 家长开场/结尾（「我的音色」合成 + 编辑页） ───────── */
+const CLIP_MAX = 100;
+const CLIP_KINDS = ["opening", "closing"];
+const CLIP_LABEL = { opening: "开场语", closing: "结束语" };
+
+function clipEl(kind, suffix) { return $(`cm${suffix}${kind === "opening" ? "Opening" : "Closing"}`); }
+
+/* 状态行：未填写 / 已写好未合成 / 合成中 / 已合成 / 失败 / 文本已改 */
+function refreshClipSec(kind) {
+  const c = clipDraft[kind];
+  const st = clipEl(kind, "St"), synth = clipEl(kind, "Synth");
+  st.className = "clip-status";
+  if (clipBusyKind === kind) {
+    st.textContent = "合成中…"; synth.textContent = "⏳ 合成中";
+  } else if (!c.text) {
+    st.textContent = "未填写"; synth.textContent = "🎙️ 合成";
+  } else if (!c.b64) {
+    st.textContent = c.error ? "合成失败 · 请重试" : "已写好 · 未合成";
+    if (c.error) st.classList.add("warn");
+    synth.textContent = "🎙️ 合成";
+  } else if (c.stale) {
+    st.textContent = "已合成 · 文本已改需重录"; st.classList.add("warn");
+    synth.textContent = "🎙️ 重录";
+  } else {
+    st.textContent = `已合成 · ${fmtTime(c.dur_s || 0)}`; st.classList.add("ok");
+    synth.textContent = "🎙️ 重录";
+  }
+}
+
+function syncClipInputs() {
+  CLIP_KINDS.forEach(kind => {
+    const c = clipDraft[kind];
+    clipEl(kind, "Name").value = c.name || "";
+    clipEl(kind, "Text").value = c.text || "";
+    clipEl(kind, "Cnt").textContent = `${(c.text || "").length} / ${CLIP_MAX}`;
+    refreshClipSec(kind);
+  });
+}
+
+function stopPreview() {
+  if (previewAudio) { previewAudio.pause(); previewAudio = null; }
+  clipEl("opening", "Play").textContent = "▶ 试听";
+  clipEl("closing", "Play").textContent = "▶ 试听";
+}
+
+/* 编辑入口：需登录 + 已有「我的音色」 */
+async function openClipEditor() {
+  if (clipBusyKind) return toast("正在合成中，请稍候…");
+  const auth = getAuth();
+  if (!auth || !auth.token) {
+    return showPvModal("🔒", "还没登录",
+      "用「我的音色」录制开场 / 结尾，需要先登录声卷账号。", "去登录 / 注册", () => location.href = "index.html");
+  }
+  toast("正在检查你的专属声音…");
+  let voice = null;
+  try {
+    const r = await fetch(API + "/me/voice", { headers: authHeaders() });
+    if (r.ok) voice = (await r.json()).voice;
+  } catch (e) { /* 网络失败按无声音处理 */ }
+  if (!voice) {
+    return showPvModal("🎙️", "还没有「我的声音」",
+      "去工作台生成「我的声音」，就能录制宝贝专属的开场与晚安语啦。",
+      "去工作台生成「我的声音」", () => location.href = "index.html");
+  }
+  clipVoice = voice;
+  const saved = getClips();
+  clipDraft = {
+    opening: Object.assign({ name: "开场语", text: "", b64: null, dur_s: 0, stale: false, error: false, b64Text: "" }, saved.opening || {}),
+    closing: Object.assign({ name: "结束语", text: "", b64: null, dur_s: 0, stale: false, error: false, b64Text: "" }, saved.closing || {})
+  };
+  const sw = getClipSwitch();
+  $("cmMaster").checked = !!sw.on;
+  $("cmChipOpening").classList.toggle("active", !!sw.opening);
+  $("cmChipClosing").classList.toggle("active", !!sw.closing);
+  $("cmVoiceLine").textContent = `当前音色：「${voice.name}」（我的音色）`;
+  syncClipInputs();
+  $("clipModal").style.display = "flex";
+}
+$("clipBtnList").onclick = openClipEditor;
+$("clipBtn").onclick = openClipEditor;
+
+/* 输入绑定（文本 / 计数 / 重命名） */
+CLIP_KINDS.forEach(kind => {
+  clipEl(kind, "Text").addEventListener("input", () => {
+    const c = clipDraft[kind];
+    c.text = clipEl(kind, "Text").value;
+    clipEl(kind, "Cnt").textContent = `${c.text.length} / ${CLIP_MAX}`;
+    if (c.b64 && c.b64Text !== c.text) c.stale = true;
+    refreshClipSec(kind);
+  });
+  clipEl(kind, "Name").addEventListener("input", () => { clipDraft[kind].name = clipEl(kind, "Name").value; });
+});
+
+/* 合成：走 /tasks（我的音色 + bedtime 语感 + 无 BGM），成品 base64 存本地 */
+async function synthClip(kind) {
+  if (clipBusyKind) return toast("正在合成中，请稍候…");
+  const c = clipDraft[kind];
+  const text = (c.text || "").trim();
+  if (!text) return toast(`先写一句${CLIP_LABEL[kind]}吧`);
+  if (!clipVoice) return toast("未获取到「我的音色」，请重新打开编辑页");
+  clipBusyKind = kind;
+  c.error = false;
+  refreshClipSec(kind);
+  clipEl(kind, "Synth").disabled = true;
+  toast(`🎙️ 正在用「${clipVoice.name}」录制${CLIP_LABEL[kind]}…`, 4000);
+  try {
+    const r = await fetch(API + "/tasks", {
+      method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ text, narrator: clipVoice.speaker_id, style: "bedtime", bgm: false })
+    });
+    if (!r.ok) throw new Error((await r.json()).error || "HTTP " + r.status);
+    const { task_id } = await r.json();
+    let st = {};
+    for (let i = 0; i < 100; i++) {                 // 上限 5 分钟
+      await new Promise(res => setTimeout(res, 3000));
+      st = await fetch(`${API}/tasks/${task_id}`).then(x => x.json());
+      if (st.status !== "running") break;
+      if (i % 4 === 3) toast(`合成中… ${st.progress || ""}`);
+    }
+    if (st.status !== "done") throw new Error(st.error || "生成超时，请稍后重试");
+    st = await fetch(`${API}/tasks/${task_id}?audio=1`).then(x => x.json());   // 成品 base64 需显式拉取
+    const dur = await new Promise(res => {
+      const a = new Audio("data:audio/mpeg;base64," + st.audio_base64);
+      a.onloadedmetadata = () => res(a.duration || 0);
+      a.onerror = () => res(0);
+    });
+    c.b64 = st.audio_base64;
+    c.dur_s = Math.round(dur);
+    c.b64Text = text;      // 记录已合成的文本版本，改动后提示重录
+    c.stale = false;
+    toast(`✨ ${CLIP_LABEL[kind]}合成成功，可以试听啦`);
+  } catch (e) {
+    c.error = true;
+    toast(`${CLIP_LABEL[kind]}合成失败：` + String(e.message || e).slice(0, 70), 4000);
+  } finally {
+    clipBusyKind = null;
+    clipEl(kind, "Synth").disabled = false;
+    refreshClipSec(kind);
+  }
+}
+$("cmSynthOpening").onclick = () => synthClip("opening");
+$("cmSynthClosing").onclick = () => synthClip("closing");
+
+/* 试听（暂停故事正文避免混音，再播/再点停止） */
+function togglePreview(kind) {
+  const c = clipDraft[kind];
+  const btn = clipEl(kind, "Play");
+  if (!c.b64) return toast(`这段${CLIP_LABEL[kind]}还没合成，先点「合成」`);
+  if (previewAudio) { stopPreview(); return; }
+  if (audio && !audio.paused) {
+    userPaused = true; audio.pause();
+    $("playBtn").textContent = "▶"; $("plCover").classList.remove("playing");
+  }
+  previewAudio = new Audio("data:audio/mpeg;base64," + c.b64);
+  previewAudio.playbackRate = playRate;
+  previewAudio.onended = () => stopPreview();
+  previewAudio.play().catch(() => { stopPreview(); toast("试听播放失败"); return; });
+  btn.textContent = "⏸ 停止";
+}
+$("cmPlayOpening").onclick = () => togglePreview("opening");
+$("cmPlayClosing").onclick = () => togglePreview("closing");
+
+/* 删除（清空该片段的文本与音频，保存后生效） */
+CLIP_KINDS.forEach(kind => {
+  clipEl(kind, "Del").onclick = () => {
+    const c = clipDraft[kind];
+    if (!c.text && !c.b64) return;
+    if (!confirm(`确定删除这段${CLIP_LABEL[kind]}吗？`)) return;
+    clipDraft[kind] = { name: c.name, text: "", b64: null, dur_s: 0, stale: false, error: false, b64Text: "" };
+    stopPreview();
+    syncClipInputs();
+    toast(`已删除（点「保存」后生效）`);
+  };
+});
+
+/* 总开关与细分开关：点击即持久化 */
+$("cmMaster").addEventListener("change", () => {
+  const sw = getClipSwitch();
+  sw.on = $("cmMaster").checked;
+  setClipSwitch(sw);
+  refreshClipPill();
+});
+function bindClipChip(id, key) {
+  $(id).onclick = () => {
+    $(id).classList.toggle("active");
+    const sw = getClipSwitch();
+    sw[key] = $(id).classList.contains("active");
+    setClipSwitch(sw);
+    refreshClipPill();
+  };
+}
+bindClipChip("cmChipOpening", "opening");
+bindClipChip("cmChipClosing", "closing");
+
+/* 保存：片段数据落本地；有文本未合成的片段提示将跳过 */
+$("cmSave").onclick = () => {
+  CLIP_KINDS.forEach(kind => {
+    const c = clipDraft[kind];
+    c.name = (c.name || "").trim() || CLIP_LABEL[kind];
+    if (!c.text) { c.b64 = null; c.dur_s = 0; c.stale = false; }   // 文本清空 → 音频一并失效
+  });
+  const pending = CLIP_KINDS.filter(k => clipDraft[k].text && !clipDraft[k].b64);
+  if (!setClips(clipDraft)) {
+    return toast("本地空间不足，保存失败；试试缩短文本后重新合成", 4500);
+  }
+  stopPreview();
+  $("clipModal").style.display = "none";
+  refreshClipPill();
+  toast(pending.length
+    ? `✅ 已保存（${pending.map(k => CLIP_LABEL[k]).join("、")}还未合成，播放时将自动跳过）`
+    : "✅ 开场 / 结尾已保存", 3500);
+};
+$("cmClose").onclick = () => { stopPreview(); $("clipModal").style.display = "none"; };
+
+/* 播放页总开关 pill 状态 */
+function refreshClipPill() {
+  const sw = getClipSwitch();
+  $("clipBtn").classList.toggle("active", !!sw.on);
+  $("clipBtn").textContent = sw.on ? "🎵 开场结尾 · 开" : "🎵 开场结尾 · 关";
+}
+
+
 /* ───────── 后台/熄屏播放保活 ───────── */
 /* 静音循环音频占住媒体通道：阻止安卓 WebView 把页面判定为空闲并冻结 */
 const keepAlive = new Audio("data:audio/wav;base64,UklGRhoAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=");
@@ -630,17 +1072,17 @@ keepAlive.loop = true; keepAlive.volume = 0;
 function keepAliveOn()  { keepAlive.play().catch(() => {}); }
 function keepAliveOff() { keepAlive.pause(); }
 
-/* 回到前台：若熄屏前在播放，自动续播 */
+/* 回到前台：若熄屏前在播放，自动续播（含开场/结尾片段） */
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && audio && !userPaused && !audio.ended && audio.paused) {
-    audio.play().catch(() => {});
-  }
+  if (document.visibilityState !== "visible" || userPaused) return;
+  const m = activeMedia();
+  if (m && !m.ended && m.paused) m.play().catch(() => {});
 });
 
-/* 微信 X5 内核：bridge ready 后放行媒体；离开页面存进度 */
+/* 微信 X5 内核：bridge ready 后放行媒体；离开页面存进度（片段播放中不写故事进度） */
 document.addEventListener("WeixinJSBridgeReady", () => { keepAliveOn(); }, false);
 window.addEventListener("pagehide", () => {
-  if (audio && curAudioId) saveProgress(curAudioId, audio.currentTime * 1000, audio.duration * 1000);
+  if (audio && curAudioId && !curClip) saveProgress(curAudioId, audio.currentTime * 1000, audio.duration * 1000);
 });
 
 /* MediaSession 锁屏控制 */
@@ -652,11 +1094,11 @@ function setupMediaSession(meta) {
       `<svg xmlns='http://www.w3.org/2000/svg' width='192' height='192'><rect width='192' height='192' rx='36' fill='%23232030'/><text x='96' y='120' font-size='96' text-anchor='middle'>${coverOf(meta.id)}</text></svg>`),
       sizes: "192x192", type: "image/svg+xml" }]
   });
-  navigator.mediaSession.setActionHandler("play", () => { userPaused = false; audio.play().catch(() => {}); });
-  navigator.mediaSession.setActionHandler("pause", () => { userPaused = true; audio.pause(); });
-  navigator.mediaSession.setActionHandler("seekbackward", () => { audio.currentTime = Math.max(0, audio.currentTime - 15); });
-  navigator.mediaSession.setActionHandler("seekforward", () => { audio.currentTime += 30; });
-  try { navigator.mediaSession.setActionHandler("stop", () => { userPaused = true; audio.pause(); }); } catch (e) {}
+  navigator.mediaSession.setActionHandler("play", () => { userPaused = false; const m = activeMedia(); if (m) m.play().catch(() => {}); });
+  navigator.mediaSession.setActionHandler("pause", () => { userPaused = true; const m = activeMedia(); if (m) m.pause(); });
+  navigator.mediaSession.setActionHandler("seekbackward", () => { const m = activeMedia(); if (m) m.currentTime = Math.max(0, m.currentTime - 15); });
+  navigator.mediaSession.setActionHandler("seekforward", () => { const m = activeMedia(); if (m) m.currentTime += 30; });
+  try { navigator.mediaSession.setActionHandler("stop", () => { userPaused = true; const m = activeMedia(); if (m) m.pause(); }); } catch (e) {}
 }
 
 /* 播放状态上报：锁屏界面按钮状态正确 */
@@ -849,6 +1291,7 @@ function renderCustomStory(title, content) {
   $("plSub").textContent = "我的读本 · 有声化生成中";
   $("plCover").textContent = coverOf(title);
   window.scrollTo(0, 0);
+  stopClipPlayback();
   if (audio) { audio.pause(); audio.src = ""; }
   audio = new Audio();
   bindAudioEvents();
@@ -885,11 +1328,9 @@ async function startCustomRender(title, content) {
     if (segs.length && segs.every(s => "start_ms" in s)) segTimeline = segs;
     renderTextBox();
     $("plSub").textContent = "我的读本 · 睡前故事姐姐朗读";
-    audio.currentTime = 0;
-    audio.play().catch(() => {});
-    $("playBtn").textContent = "❚❚";
-    $("plCover").classList.add("playing");
-    toast("✨ 有声版好啦，正在播放");
+    clipChainStopped = false;
+    if (clipEnabled("opening")) { toast("✨ 有声版好啦"); startClipChain("opening"); }
+    else { startStoryAt(0); toast("✨ 有声版好啦，正在播放"); }
   } catch (e) {
     toast("生成失败：" + String(e.message || e).slice(0, 80), 4000);
   } finally {
@@ -899,7 +1340,9 @@ async function startCustomRender(title, content) {
 
 /* 返回列表 */
 $("backBtn").onclick = () => {
-  if (audio) saveProgress(curAudioId, audio.currentTime * 1000, audio.duration * 1000);
+  clipChainStopped = true;
+  stopClipPlayback();
+  if (audio && curAudioId && !curClip) saveProgress(curAudioId, audio.currentTime * 1000, audio.duration * 1000);
   $("player-page").style.display = "none";
   $("list-page").style.display = "block";
   refreshMyTabs();
@@ -916,6 +1359,7 @@ document.querySelectorAll("#ageTabs .tab").forEach(btn => {
   };
 });
 
+refreshClipPill();
 refreshMyTabs();
 loadIndex();
 </script>
