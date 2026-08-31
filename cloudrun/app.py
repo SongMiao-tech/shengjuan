@@ -54,6 +54,7 @@ PROMPT = """你是有声书情感分析师。分析下面的文本，把它切�
 - role: 该段的朗读归属，判定规则：
     * 台词段——角色亲口说的话（无论是否带引号），填该角色名；
     * 叙述段——作者的描写、动作、心理说明（如"林晚盯着屏幕……"、"她喃喃道，手指微微发抖"），一律填"旁白"，即使句中出现了角色名字；
+    * 拟声词段——模拟环境声音的象声词（如"轰隆隆""哗啦啦""滴答""咔嚓""呼——"及其叠词/连用），不是任何角色说出口的话，纯拟声段一律填"旁白"、gender 填 unknown；但以拟声词开头、后面跟着实际说话内容的句子（如"哈哈，你好"）仍按台词处理；
     * 若一句中台词与叙述混杂（如：「"这不可能。"她说道。」），沿引号边界拆分为两段：台词单独一段填角色名，叙述单独一段填旁白；
     * 区分关键：看这段话是不是角色"说出口的内容"。有说话人动词（说道/吼道/喃喃道/低声问）紧邻的口语短句通常是台词；第三人称的描写是叙述。
 - gender: 台词角色的性别，male/female/unknown（旁白与非台词段一律填unknown；同一角色各段必须一致，依据名字与上下文判断）
@@ -84,6 +85,21 @@ __TEXT__
 """
 
 
+# ── 拟声词识别：仅由拟声字构成的段落强制归旁白（GLM 偶发把"轰隆隆"等判成角色台词） ──
+# 集合只收纯拟声字；叹词（啊/哦/嗯/哈/呜/呀/哇等角色发声）与普通词汇字符不在内，
+# 因此"哈哈，你好"（含非拟声字）仍按台词分配，角色笑声/哭声也不被误改。
+_ONOMATOPOEIA_CHARS = set(
+    "轰哗啦叮滴答呼沙咔砰嗖咚噼啪嘟隆吱哞咩汪喵叽喳嘎咕呱嗡锵哐啷铛嘶潺淅沥簌嗒嗵嘣噗嚓咯咝乒乓唰笃咚欻哒哔噜啾呖铮嘚当"
+)
+_ONOMA_STRIP_RE = re.compile(r"[\s\u3000，。！？、；：…—～·「」『』“”‘’\"'!?,.:;()\-]+")
+
+
+def _is_onomatopoeia(text: str) -> bool:
+    """去掉标点/引号/空白后，剩余字符全部是拟声字 → 视为纯拟声段（应归旁白）。"""
+    core = _ONOMA_STRIP_RE.sub("", text or "")
+    return bool(core) and all(ch in _ONOMATOPOEIA_CHARS for ch in core)
+
+
 def assign_speakers(segments: list, narrator: str) -> dict:
     """按角色性别分配音色；旁白固定用 narrator；同一角色全篇锁定同一音色。
 
@@ -91,6 +107,12 @@ def assign_speakers(segments: list, narrator: str) -> dict:
     - 分配改 hash 取模：同一角色名跨故事恒定映射同一音色（角色记忆一致性）
     - 池耗尽不再退化成旁白（撞声），改为复用该性别池音色 + speech_rate 偏移区分
     """
+    # ── 拟声词兜底：纯象声词段落强制归旁白（GLM 偶发把"轰隆隆"等判成角色台词） ──
+    for seg in segments:
+        if _is_onomatopoeia(seg.get("text", "")):
+            seg["role"] = "旁白"
+            seg["gender"] = "unknown"
+
     pools = {"male": [s for s in MALE_POOL if s != narrator],       # 角色不用旁白音色，避免撞声
              "female": [s for s in FEMALE_POOL if s != narrator]}
     base = {"male": list(pools["male"]), "female": list(pools["female"])}
