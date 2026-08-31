@@ -757,7 +757,11 @@ function startClipChain(kind) {
 /* 开始播放故事正文（pos=0 或续听位置） */
 function startStoryAt(pos) {
   curClip = null;
-  if (pos) audio.currentTime = pos;
+  if (pos) {
+    /* metadata 未就绪时直接设 currentTime 会被忽略——延迟到 loadedmetadata 再 seek */
+    if (audio.duration > 0) audio.currentTime = pos;
+    else audio.addEventListener("loadedmetadata", () => { try { audio.currentTime = pos; } catch (e) {} }, { once: true });
+  }
   audio.play().catch(() => {});
   $("playBtn").textContent = "❚❚";
   $("plCover").classList.add("playing");
@@ -901,6 +905,8 @@ function onMiniClick() {
 async function openNowPlaying(autoPlay) {
   if (!nowPlaying) return;
   const id = nowPlaying.id;
+  /* 恢复场景：带上退出时的位置，续播正文（跳过开场语） */
+  window._miniResumeMs = (!nowPlaying.completed && nowPlaying.posMs > 0) ? nowPlaying.posMs : null;
   /* 复用既有的 openStory 流程，但跳过家长门禁（已经过过 / 离开时未过期） */
   const target = (typeof _openStoryProceed === "function") ? _openStoryProceed : openStory;
   if (curAudioId === id && audio && audio.duration > 0) {
@@ -1050,7 +1056,13 @@ async function _openStoryProceed(id) {
   setNowPlaying(id, meta.title || "");           // 注册到迷你栏 + 持久化
 
   const prog = getProgress(id);
-  const resumePos = (prog && prog.pos > 30000) ? prog.pos / 1000 : 0;
+  let resumePos = (prog && prog.pos > 30000) ? prog.pos / 1000 : 0;
+  /* 迷你栏恢复：sqNowPlaying 里的 posMs 是最新退出位置（比 sq_prog 更可信，
+     因为开场片段播放期间 sq_prog 不落盘）——直接续播正文、跳过开场 */
+  if (typeof window._miniResumeMs === "number" && window._miniResumeMs > 0) {
+    resumePos = window._miniResumeMs / 1000;
+  }
+  window._miniResumeMs = null;
   if (resumePos) toast(`从上次的位置继续 · ${fmtTime(resumePos)}`);
   applySleepTimer();
   userPaused = false;
