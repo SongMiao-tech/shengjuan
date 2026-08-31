@@ -96,6 +96,7 @@
   .deco {
     position: absolute; pointer-events: none; user-select: none;
     mix-blend-mode: screen; z-index: 0;
+    will-change: transform;   /* 提升为独立合成层，滚动时不重混合 */
   }
   #list-page > *:not(.deco), #player-page > *:not(.deco) { position: relative; z-index: 1; }
   .deco-moon {
@@ -121,11 +122,12 @@
   .mini-bar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
     height: 60px; background: rgba(10, 8, 18, .92);
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     border-top: 1px solid var(--line);
     display: flex; align-items: center; gap: 12px;
     padding: 0 16px; color: var(--ink);
     cursor: pointer; transition: background .2s;
+    will-change: transform;   /* 固定条提升为合成层，滚动/进度更新不牵连整页重绘 */
   }
   .mini-bar:hover { background: rgba(10, 8, 18, .96); }
   .mini-bar .mini-cover {
@@ -818,24 +820,28 @@ let nowPlaying = null;                              // 当前正在播放的篇�
 const NP_KEY = "sqNowPlaying";
 const _playIcon = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
 const _pauseIcon = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
+let _npLastSave = 0;                                // localStorage 同步写有成本，播放中节流
 
-function saveNowPlaying() {
-  if (nowPlaying) store.setItem(NP_KEY, JSON.stringify(nowPlaying));
-  else store.removeItem(NP_KEY);
+function saveNowPlaying(force) {
+  if (!nowPlaying) { store.removeItem(NP_KEY); return; }
+  const now = Date.now();
+  if (!force && now - _npLastSave < 3000) return;   // 3 秒节流（移动端同步 IO 卡主线程）
+  _npLastSave = now;
+  store.setItem(NP_KEY, JSON.stringify(nowPlaying));
 }
 function loadNowPlaying() {
   try { return JSON.parse(store.getItem(NP_KEY) || "null"); } catch (e) { return null; }
 }
-function setNowPlaying(id, title) {
-  nowPlaying = { id, title: title || "", posMs: 0, durMs: 0, completed: false, paused: true };
-  saveNowPlaying();
+function setNowPlaying(id, title, resumeMs) {
+  nowPlaying = { id, title: title || "", posMs: resumeMs || 0, durMs: 0, completed: false, paused: true };
+  saveNowPlaying(true);
   showMiniIfListVisible();    // 由列表页可见性统一决定是否显示
 }
 function clearNowPlaying() {
   if (!nowPlaying) return;
   nowPlaying.completed = true;
   nowPlaying.paused = true;
-  saveNowPlaying();
+  saveNowPlaying(true);
   paintMiniContents();
   showMiniIfListVisible();
 }
@@ -843,8 +849,12 @@ function updateNowPlayingProgress() {
   if (!nowPlaying || !audio || !audio.duration) return;
   nowPlaying.posMs = audio.currentTime * 1000;
   nowPlaying.durMs = audio.duration * 1000;
+  const wasPaused = nowPlaying.paused;
   nowPlaying.paused = audio.paused;
-  saveNowPlaying();
+  if (wasPaused !== nowPlaying.paused) {       // 仅状态翻转时刷按钮+落盘
+    saveNowPlaying(true);
+    paintMiniBtn();
+  }
   paintMiniProgress();
 }
 function paintMiniContents() {
@@ -857,10 +867,14 @@ function paintMiniContents() {
   paintMiniProgress();
   paintMiniBtn();
 }
+let _miniLastPct = -1;
 function paintMiniProgress() {
   if (!nowPlaying) return;
   const pct = (nowPlaying.durMs > 0 && !nowPlaying.completed)
     ? Math.min(100, (nowPlaying.posMs / nowPlaying.durMs) * 100) : 0;
+  /* 变化不足 0.4%（≈1 秒）不写 DOM——backdrop blur 下重绘很贵 */
+  if (Math.abs(pct - _miniLastPct) < 0.4) return;
+  _miniLastPct = pct;
   $("miniBar").style.width = pct + "%";
 }
 function paintMiniBtn() {
@@ -929,9 +943,11 @@ async function openNowPlaying(autoPlay, stayOnList) {
   $("player-page").style.display = stayOnList ? "none" : "block";
   showMiniIfListVisible();
   await target(id, stayOnList);
-  /* 跳到上次 pos */
-  if (nowPlaying && nowPlaying.posMs > 0 && audio && audio.duration > 0) {
-    try { audio.currentTime = nowPlaying.posMs / 1000; } catch (e) { /* 切 audio 不一定立即就绪 */ }
+  /* 跳到上次 pos（startStoryAt 的 loadedmetadata seek 失败时的兜底） */
+  const resumeMs = (typeof window._miniResumeMs === "number" && window._miniResumeMs > 0)
+    ? window._miniResumeMs : (nowPlaying ? nowPlaying.posMs : 0);
+  if (resumeMs > 0 && audio && audio.duration > 0 && Math.abs(audio.currentTime - resumeMs / 1000) > 2) {
+    try { audio.currentTime = resumeMs / 1000; } catch (e) { /* 切 audio 不一定立即就绪 */ }
   }
   if (autoPlay) { userPaused = false; audio.play().catch(() => {}); paintMiniBtn(); }
 }
@@ -1061,7 +1077,7 @@ async function _openStoryProceed(id, stayOnList) {
   audio.playbackRate = playRate;
   bindAudioEvents();
   setupMediaSession(meta);
-  setNowPlaying(id, meta.title || "");           // 注册到迷你栏 + 持久化
+  setNowPlaying(id, meta.title || "", (typeof window._miniResumeMs === "number") ? window._miniResumeMs : 0);  // 注册到迷你栏 + 持久化（保留恢复位置）
 
   const prog = getProgress(id);
   let resumePos = (prog && prog.pos > 30000) ? prog.pos / 1000 : 0;
@@ -1741,11 +1757,13 @@ document.addEventListener("WeixinJSBridgeReady", () => { keepAliveOn(); }, false
 window.addEventListener("pagehide", () => {
   if (audio && curAudioId && !curClip) saveProgress(curAudioId, audio.currentTime * 1000, audio.duration * 1000);
   flushListen(false, true);   // 收听增量随页面隐藏上报
-  /* 页面卸载 = 音频随之停止：存档标记为暂停态，下次进入图标/文案才不会显示成"播放中" */
-  if (nowPlaying) {
-    if (audio && curAudioId === nowPlaying.id) nowPlaying.posMs = audio.currentTime * 1000;
+  /* 仅当本页音频确实在播当前篇目时才落盘退出位置——
+     本页没有音频实例时（刚恢复未播放就又离开），内存 nowPlaying 可能是陈旧值，
+     写回去会覆盖更新的存档 */
+  if (nowPlaying && audio && curAudioId === nowPlaying.id) {
+    nowPlaying.posMs = audio.currentTime * 1000;
     nowPlaying.paused = true;
-    saveNowPlaying();
+    saveNowPlaying(true);
   }
 });
 $("offlineBtn").onclick = cacheCurrentStory;
