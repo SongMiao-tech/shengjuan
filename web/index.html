@@ -259,12 +259,12 @@
   .book-hit-snippet { width: 100%; font-size: 0.76rem; color: var(--ink-soft); margin-top: 4px; line-height: 1.55; }
 
   /* 多版本 */
-  .style-row { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
-  .style-row-label { font-size: 0.72rem; color: var(--ink-faint); margin-right: 2px; }
+  .style-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+  .style-row-label { grid-column: 1 / -1; font-size: 0.72rem; color: var(--ink-faint); margin-bottom: 2px; }
   .style-chip {
-    padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 0; border: 1px solid var(--line); border-radius: 999px;
     background: #fff; color: var(--ink-soft); cursor: pointer; font-size: 0.75rem;
-    transition: all .16s ease;
+    text-align: center; transition: all .16s ease;
   }
   .style-chip:hover { border-color: var(--line-strong); }
   .style-chip.active { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-deep); font-weight: 600; }
