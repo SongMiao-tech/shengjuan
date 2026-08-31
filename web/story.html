@@ -880,14 +880,19 @@ function toggleMiniPlay() {
     openNowPlaying(true);
     return;
   }
-  if (!curAudioId || curAudioId !== nowPlaying.id || audio.paused) {
-    /* 还没在播放（首点 / 跨篇目）→ 加载并播放 */
-    openNowPlaying(true);
-  } else {
+  /* 同一篇目且音频元素健在 → 原地切换播放/暂停（不跳页） */
+  const loaded = curAudioId === nowPlaying.id && audio && audio.duration > 0;
+  if (loaded) {
     userPaused = !userPaused;
-    if (userPaused) audio.pause(); else audio.play();
+    if (userPaused) audio.pause(); else audio.play().catch(() => {});
+    nowPlaying.paused = userPaused;
+    saveNowPlaying();
     paintMiniBtn();
+    $("miniSub").textContent = userPaused ? "已暂停" : "正在播放";
+    return;
   }
+  /* 音频未加载（首次点/换篇目/已释放）→ 加载并自动播 */
+  openNowPlaying(true);
 }
 function onMiniClick() {
   /* 点空白区 = 跳回播放页（保持当前 pos） */
