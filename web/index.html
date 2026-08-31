@@ -360,12 +360,16 @@
   @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
   .sec-head {
-    display: flex; align-items: baseline; gap: 14px;
-    padding-bottom: 12px; margin-bottom: 20px;
-    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 18px; margin-bottom: 20px;
+    background: #fff; border: 1px solid var(--line); border-radius: 10px;
   }
-  .sec-title { font-family: var(--serif); font-size: 1.15rem; font-weight: 700; }
+  .sec-head .sec-actions { margin-left: auto; }
+  .sec-title { font-family: var(--serif); font-size: 1.05rem; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+  .sec-title svg { width: 16px; height: 16px; color: var(--accent-deep); }
   .sec-sub { font-size: 0.78rem; color: var(--ink-faint); }
+  .sec-actions button { background: #fff; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; font-size: 0.78rem; font-family: var(--sans); cursor: pointer; transition: border-color .15s, color .15s; }
+  .sec-actions button:hover { border-color: var(--accent); color: var(--accent-deep); }
 
   /* 播放器 */
   .player { display: flex; align-items: center; gap: 18px; margin-bottom: 40px; }
@@ -483,7 +487,17 @@
     color: var(--ink-faint); font-size: 0.9rem; line-height: 2;
     border: 1px dashed var(--line-strong); border-radius: 12px;
   }
-  #saveShelfBtn:hover { background: var(--accent-deep); transform: translateY(-1px); }
+  #saveShelfBtn {
+    background: #fff; color: var(--ink-soft);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 7px 16px; font-size: 0.82rem;
+    font-family: var(--sans); cursor: pointer;
+    display: inline-flex; align-items: center; gap: 7px;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  #saveShelfBtn:hover { border-color: var(--accent); color: var(--accent-deep); background: var(--accent-wash); }
+  #saveShelfBtn svg { width: 14px; height: 14px; }
+  #saveShelfBtn:disabled { opacity: .5; cursor: not-allowed; }
 
   footer { padding: 28px 48px; border-top: 1px solid var(--line); font-size: 0.75rem; color: var(--ink-faint); display: flex; justify-content: space-between; }
 
@@ -643,7 +657,7 @@
         <button class="dl-btn" id="dlBtn">下载 MP3</button>
       </div>
       <div style="margin:-6px 0 18px;text-align:right;">
-        <button id="saveShelfBtn" style="background:var(--accent);color:#fff;border:none;border-radius:999px;padding:9px 22px;font-size:0.85rem;cursor:pointer;font-family:var(--sans);transition:transform .15s, background .2s;">💾 保存到书架</button>
+        <button id="saveShelfBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5c2-1 4-1 6 0v14c-2-1-4-1-6 0z"/><path d="M10 5c2-1 4-1 6 0v14c-2-1-4-1-6 0"/><path d="M6 4h12v17l-6-4-6 4z"/></svg>保存到书架</button>
         <span id="saveShelfHint" style="font-size:0.72rem;color:var(--ink-faint);margin-left:10px;"></span>
       </div>
 
@@ -663,8 +677,9 @@
 
     <div id="shelfView" style="display:none;">
       <div class="sec-head">
-        <span class="sec-title">📚 我的书架</span>
-        <span class="sec-sub">工作台生成并保存的有声书 · 睡前故事页同步可听 <button id="shelfRefresh" style="background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:0.8rem;">↻ 刷新</button></span>
+        <span class="sec-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5c2-1 4-1 6 0v14c-2-1-4-1-6 0z"/><path d="M10 5c2-1 4-1 6 0v14c-2-1-4-1-6 0"/><path d="M16 6.5c1.5-.8 3-1 4.5-.5l-2.6 13c-1.2-.4-2.4-.2-3.9.5"/></svg>我的书架</span>
+        <span class="sec-sub">工作台生成并保存的有声书 · 睡前故事页同步可听</span>
+        <span class="sec-actions"><button id="shelfRefresh">刷新</button></span>
       </div>
       <div id="shelfGrid" class="shelf-grid"><div class="shelf-empty">📚 正在打开书架…</div></div>
     </div>
