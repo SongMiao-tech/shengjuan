@@ -865,8 +865,8 @@ function paintMiniProgress() {
 }
 function paintMiniBtn() {
   if (!nowPlaying) return;
-  /* 音频元素健在时，以真实播放状态为准回写（否则图标/文案会滞后） */
-  if (audio && audio.duration > 0 && curAudioId === nowPlaying.id) {
+  /* 音频元素是当前篇目时，以真实播放状态为准回写（否则图标/文案会滞后） */
+  if (audio && curAudioId === nowPlaying.id) {
     nowPlaying.paused = audio.paused;
   }
   saveNowPlaying();
@@ -1109,8 +1109,11 @@ function bindAudioEvents() {
       saveProgress(curAudioId, audio.currentTime * 1000, audio.duration * 1000);
     updateNowPlayingProgress();    // 同步迷你栏进度
   };
+  /* 播放/暂停事件 → 迷你栏图标实时翻转 */
+  audio.onplay = () => paintMiniBtn();
   /* 熄屏保活：浏览器（尤其微信内置浏览器）后台会自动 pause，非用户操作时自动恢复 */
   audio.onpause = () => {
+    paintMiniBtn();
     if (userPaused || audio.ended) return;
     const pos = audio.currentTime;
     const tryResume = (n) => {
