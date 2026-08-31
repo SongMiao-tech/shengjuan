@@ -902,14 +902,14 @@ function toggleMiniPlay() {
     $("miniSub").textContent = userPaused ? "已暂停" : "正在播放";
     return;
   }
-  /* 音频未加载（首次点/换篇目/已释放）→ 加载并自动播 */
-  openNowPlaying(true);
+  /* 音频未加载（首次点/换篇目/已释放）→ 后台加载并开播，留在列表页不跳转 */
+  openNowPlaying(true, true);
 }
 function onMiniClick() {
   /* 点空白区 = 跳回播放页（保持当前 pos） */
   openNowPlaying(false);
 }
-async function openNowPlaying(autoPlay) {
+async function openNowPlaying(autoPlay, stayOnList) {
   if (!nowPlaying) return;
   const id = nowPlaying.id;
   /* 恢复场景：带上退出时的位置，续播正文（跳过开场语） */
@@ -917,22 +917,23 @@ async function openNowPlaying(autoPlay) {
   /* 复用既有的 openStory 流程，但跳过家长门禁（已经过过 / 离开时未过期） */
   const target = (typeof _openStoryProceed === "function") ? _openStoryProceed : openStory;
   if (curAudioId === id && audio && audio.duration > 0) {
-    /* 已经在播/已加载：仅切到播放页 */
-    $("list-page").style.display = "none";
-    $("player-page").style.display = "block";
-    $("miniPlayer").style.display = "none";
+    /* 已经在播/已加载 */
+    $("list-page").style.display = stayOnList ? "block" : "none";
+    $("player-page").style.display = stayOnList ? "none" : "block";
+    showMiniIfListVisible();
+    if (autoPlay) { userPaused = false; audio.play().catch(() => {}); paintMiniBtn(); }
     return;
   }
   /* 否则走一遍 openStory（会触发 setNowPlaying 重置——本函数应在 setNowPlaying 之后跑） */
-  $("list-page").style.display = "none";
-  $("player-page").style.display = "block";
-  $("miniPlayer").style.display = "none";
-  await target(id);
+  $("list-page").style.display = stayOnList ? "block" : "none";
+  $("player-page").style.display = stayOnList ? "none" : "block";
+  showMiniIfListVisible();
+  await target(id, stayOnList);
   /* 跳到上次 pos */
   if (nowPlaying && nowPlaying.posMs > 0 && audio && audio.duration > 0) {
     try { audio.currentTime = nowPlaying.posMs / 1000; } catch (e) { /* 切 audio 不一定立即就绪 */ }
   }
-  if (autoPlay) { userPaused = false; audio.play().catch(() => {}); }
+  if (autoPlay) { userPaused = false; audio.play().catch(() => {}); paintMiniBtn(); }
 }
 
 /* 打开故事：先过家长控制门禁（就寝时段 / 每日上限），再进加载流程 */
@@ -1004,7 +1005,7 @@ $("gateCancel").onclick = () => {
 };
 $("gatePwd").addEventListener("keydown", e => { if (e.key === "Enter") tryGateUnlock(); });
 
-async function _openStoryProceed(id) {
+async function _openStoryProceed(id, stayOnList) {
   const meta = INDEX.stories.find(s => s.id === id);
   if (!meta) return toast("故事数据未找到");
   flushListen(false);   // 上一段的收听记录先落库
@@ -1037,8 +1038,8 @@ async function _openStoryProceed(id) {
     }
   }
 
-  $("list-page").style.display = "none";
-  $("player-page").style.display = "block";
+  $("list-page").style.display = stayOnList ? "block" : "none";
+  $("player-page").style.display = stayOnList ? "none" : "block";
   showMiniIfListVisible();
   $("plTitle").textContent = meta.title;
   const seriesText = (meta.series && meta.series !== "single")
