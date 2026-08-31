@@ -447,7 +447,9 @@
     padding: 8px 14px; margin-bottom: -1px; cursor: pointer;
     font-family: var(--serif); font-size: 0.95rem; color: var(--ink-faint);
     transition: color .15s, border-color .15s;
+    display: inline-flex; align-items: center; gap: 7px;
   }
+  .view-tab .vt-ic { width: 15px; height: 15px; flex-shrink: 0; }
   .view-tab:hover { color: var(--ink-soft); }
   .view-tab.active { color: var(--accent-deep); border-bottom-color: var(--accent); font-weight: 700; }
   .shelf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 18px; }
@@ -593,8 +595,8 @@
     </div>
 
     <div class="view-tabs" id="viewTabs">
-      <button class="view-tab active" data-view="create">✍️ 创作</button>
-      <button class="view-tab" data-view="shelf">📚 书架</button>
+      <button class="view-tab active" data-view="create"><svg class="vt-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4c-4 0-9 3-12 7l-3 8 8-3c4-3 7-8 7-12z"/><path d="M7 17l3-3"/><path d="M9 15c-1.5 1.5-2 4-2 4s2.5-.5 4-2"/></svg>创作</button>
+      <button class="view-tab" data-view="shelf"><svg class="vt-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5c2-1 4-1 6 0v14c-2-1-4-1-6 0z"/><path d="M10 5c2-1 4-1 6 0v14c-2-1-4-1-6 0"/><path d="M16 6.5c1.5-.8 3-1 4.5-.5l-2.6 13c-1.2-.4-2.4-.2-3.9.5"/></svg>书架</button>
     </div>
 
     <div id="createView">
@@ -1716,9 +1718,8 @@ $("saveShelfBtn").onclick = async () => {
   if (_shelfSaving) return;
   const authRaw = store.getItem("sqAuth");
   if (!authRaw) {
-    return showPvModal("🔒", "还没有登录",
-      "登录后才能把有声书保存到书架，并在睡前故事页同步收听。",
-      "去登录 / 注册", () => { location.href = "index.html"; });
+    if (confirm("登录后才能把有声书保存到书架，并在睡前故事页同步收听。\n现在去登录吗？")) location.href = "index.html";
+    return;
   }
   if (!lastTaskId || !lastResult || !lastResult.duration_s) return showError("还没有可保存的成品");
   const suggested = ($("textInput").value || "").replace(/\s+/g, " ").trim().slice(0, 12) || "未命名有声书";
@@ -1740,7 +1741,8 @@ $("saveShelfBtn").onclick = async () => {
     if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
     $("saveShelfHint").textContent = "✓ 已存入书架，睡前故事页可同步收听";
     btn.textContent = "✓ 已保存";
-    toast("📚 已保存到书架", 3000);
+    $("noticeBox").textContent = "📚 已保存到书架，可在「书架」标签中查看，睡前故事页同步可听";
+    $("noticeBox").classList.add("on");
   } catch (e) {
     $("saveShelfHint").textContent = "";
     btn.textContent = "💾 保存到书架";
@@ -1820,9 +1822,9 @@ async function loadWorkbenchShelf() {
         try {
           await fetch(`${API}/me/audiobooks/${id}`, { method: "DELETE", headers: shelfAuthHeaders() });
           store.removeItem(_PROG_PREFIX + id);          // 进度同步清除（两页共用）
-          toast("已删除");
+          alert("已删除");
           loadWorkbenchShelf();
-        } catch (e) { toast("删除失败，请重试"); }
+        } catch (e) { alert("删除失败，请重试"); }
       };
     });
   } catch (e) {
@@ -1868,8 +1870,8 @@ function toggleShelfPlay(id, btn) {
     if (card) card.style.width = "0%";
     btn.textContent = "▶";
   };
-  shelfAudio.onerror = () => { toast("音频加载失败，请稍后重试"); btn.textContent = "▶"; };
-  shelfAudio.play().catch(() => { toast("播放被浏览器拦截，请再点一次"); });
+  shelfAudio.onerror = () => { alert("音频加载失败，请稍后重试"); btn.textContent = "▶"; };
+  shelfAudio.play().catch(() => { alert("播放被浏览器拦截，请再点一次"); });
 }
 
 function fmt(s) {
