@@ -440,6 +440,49 @@
   }
   .notice-box.on { display: block; }
 
+  /* ── 创作/书架视图切换 + 工作台书架 ── */
+  .view-tabs { display: flex; gap: 6px; margin: 0 0 22px; border-bottom: 1px solid var(--line); }
+  .view-tab {
+    background: none; border: none; border-bottom: 2px solid transparent;
+    padding: 8px 14px; margin-bottom: -1px; cursor: pointer;
+    font-family: var(--serif); font-size: 0.95rem; color: var(--ink-faint);
+    transition: color .15s, border-color .15s;
+  }
+  .view-tab:hover { color: var(--ink-soft); }
+  .view-tab.active { color: var(--accent-deep); border-bottom-color: var(--accent); font-weight: 700; }
+  .shelf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 18px; }
+  .shelf-card {
+    border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+    background: #fff; display: flex; gap: 14px; align-items: center;
+    transition: border-color .18s, box-shadow .18s;
+  }
+  .shelf-card:hover { border-color: var(--accent); box-shadow: 0 2px 10px rgba(180, 83, 9, .08); }
+  .shelf-card .sc-cover {
+    width: 54px; height: 54px; border-radius: 10px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent-wash), #fde8cd);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--serif); font-size: 1.3rem; font-weight: 700; color: var(--accent-deep);
+  }
+  .shelf-card .sc-info { flex: 1; min-width: 0; }
+  .shelf-card .sc-title { font-weight: 600; font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .shelf-card .sc-meta { font-size: 0.72rem; color: var(--ink-faint); margin-top: 3px; }
+  .shelf-card .sc-prog { height: 3px; background: var(--line); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+  .shelf-card .sc-prog > i { display: block; height: 100%; background: var(--accent); }
+  .shelf-card .sc-actions { display: flex; flex-direction: column; gap: 6px; }
+  .shelf-card .sc-btn {
+    width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line);
+    background: #fff; cursor: pointer; font-size: 0.8rem; color: var(--ink-soft);
+    display: flex; align-items: center; justify-content: center; transition: all .15s;
+  }
+  .shelf-card .sc-btn:hover { border-color: var(--accent); color: var(--accent-deep); }
+  .shelf-card .sc-btn.del:hover { border-color: #dc2626; color: #dc2626; }
+  .shelf-empty {
+    grid-column: 1 / -1; text-align: center; padding: 60px 20px;
+    color: var(--ink-faint); font-size: 0.9rem; line-height: 2;
+    border: 1px dashed var(--line-strong); border-radius: 12px;
+  }
+  #saveShelfBtn:hover { background: var(--accent-deep); transform: translateY(-1px); }
+
   footer { padding: 28px 48px; border-top: 1px solid var(--line); font-size: 0.75rem; color: var(--ink-faint); display: flex; justify-content: space-between; }
 
   /* 响应式 */
@@ -549,6 +592,12 @@
       <p class="work-desc">粘贴小说、散文或故事文本，系统将自动标注每段情绪、分配角色音色并匹配配乐，生成可直接收听的有声成品。</p>
     </div>
 
+    <div class="view-tabs" id="viewTabs">
+      <button class="view-tab active" data-view="create">✍️ 创作</button>
+      <button class="view-tab" data-view="shelf">📚 书架</button>
+    </div>
+
+    <div id="createView">
     <textarea id="textInput" spellcheck="false" placeholder="粘贴文本，或将 TXT 文件拖到这里…"></textarea>
     <input type="file" id="txtFile" accept=".txt,text/plain" hidden>
     <div class="text-meta">
@@ -591,6 +640,10 @@
         </div>
         <button class="dl-btn" id="dlBtn">下载 MP3</button>
       </div>
+      <div style="margin:-6px 0 18px;text-align:right;">
+        <button id="saveShelfBtn" style="background:var(--accent);color:#fff;border:none;border-radius:999px;padding:9px 22px;font-size:0.85rem;cursor:pointer;font-family:var(--sans);transition:transform .15s, background .2s;">💾 保存到书架</button>
+        <span id="saveShelfHint" style="font-size:0.72rem;color:var(--ink-faint);margin-left:10px;"></span>
+      </div>
 
       <div class="sec-head">
         <span class="sec-title">情绪曲线</span>
@@ -603,6 +656,15 @@
       <div class="curve-legend" id="legend"></div>
 
       <div class="seg-list" id="segList"></div>
+    </div>
+    </div><!-- /createView -->
+
+    <div id="shelfView" style="display:none;">
+      <div class="sec-head">
+        <span class="sec-title">📚 我的书架</span>
+        <span class="sec-sub">工作台生成并保存的有声书 · 睡前故事页同步可听 <button id="shelfRefresh" style="background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:0.8rem;">↻ 刷新</button></span>
+      </div>
+      <div id="shelfGrid" class="shelf-grid"><div class="shelf-empty">📚 正在打开书架…</div></div>
     </div>
   </main>
 </div>
@@ -1634,6 +1696,181 @@ $("dlBtn").onclick = () => {
   a.download = "audiobook_" + new Date().toISOString().slice(0, 10) + ".mp3";
   a.click();
 };
+
+/* ───────── 创作 / 书架视图切换 ───────── */
+function switchView(v) {
+  document.querySelectorAll("#viewTabs .view-tab").forEach(b =>
+    b.classList.toggle("active", b.dataset.view === v));
+  $("createView").style.display = v === "create" ? "block" : "none";
+  $("shelfView").style.display = v === "shelf" ? "block" : "none";
+  if (v === "shelf") loadWorkbenchShelf();
+}
+document.querySelectorAll("#viewTabs .view-tab").forEach(btn => {
+  btn.onclick = () => switchView(btn.dataset.view);
+});
+$("shelfRefresh").onclick = () => loadWorkbenchShelf();
+
+/* ───────── 保存成品到书架（自主选择） ───────── */
+let _shelfSaving = false;
+$("saveShelfBtn").onclick = async () => {
+  if (_shelfSaving) return;
+  const authRaw = store.getItem("sqAuth");
+  if (!authRaw) {
+    return showPvModal("🔒", "还没有登录",
+      "登录后才能把有声书保存到书架，并在睡前故事页同步收听。",
+      "去登录 / 注册", () => { location.href = "index.html"; });
+  }
+  if (!lastTaskId || !lastResult || !lastResult.duration_s) return showError("还没有可保存的成品");
+  const suggested = ($("textInput").value || "").replace(/\s+/g, " ").trim().slice(0, 12) || "未命名有声书";
+  const title = prompt("保存到书架（可修改标题）：", suggested);
+  if (title === null) return;                       // 用户取消
+  const finalTitle = title.trim().slice(0, 80) || suggested;
+  _shelfSaving = true;
+  const btn = $("saveShelfBtn");
+  btn.disabled = true; btn.textContent = "⏳ 正在保存…";
+  $("saveShelfHint").textContent = "音频较大时保存需要十几秒";
+  try {
+    const auth = JSON.parse(authRaw);
+    const r = await fetch(`${API}/me/audiobooks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (auth.token || "") },
+      body: JSON.stringify({ task_id: lastTaskId, title: finalTitle })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+    $("saveShelfHint").textContent = "✓ 已存入书架，睡前故事页可同步收听";
+    btn.textContent = "✓ 已保存";
+    toast("📚 已保存到书架", 3000);
+  } catch (e) {
+    $("saveShelfHint").textContent = "";
+    btn.textContent = "💾 保存到书架";
+    showError("保存失败：" + String(e.message || e).slice(0, 80));
+  }
+  _shelfSaving = false; btn.disabled = false;
+};
+
+/* ───────── 工作台书架（与睡前故事页共用后端数据源） ───────── */
+let shelfAudio = null, shelfPlayingId = null, _shelfProgTimer = 0;
+const _PROG_PREFIX = "sq_prog_";                    // 与 story.html 同 key 约定 → 进度跨页一致
+
+function shelfAuthHeaders() {
+  try {
+    const a = JSON.parse(store.getItem("sqAuth") || "null");
+    return a && a.token ? { "Authorization": "Bearer " + a.token } : {};
+  } catch (e) { return {}; }
+}
+function shelfLoggedIn() {
+  try { const a = JSON.parse(store.getItem("sqAuth") || "null"); return !!(a && a.token); }
+  catch (e) { return false; }
+}
+function getProg(id) {
+  try { return JSON.parse(store.getItem(_PROG_PREFIX + id) || "null"); } catch (e) { return null; }
+}
+function saveProg(id, pos, dur) {
+  store.setItem(_PROG_PREFIX + id, JSON.stringify({ pos, dur, at: Date.now() }));
+}
+function fmtDur(s) {
+  if (!s || !isFinite(s)) return "--:--";
+  const m = Math.floor(s / 60), ss = Math.round(s % 60);
+  return m + ":" + String(ss).padStart(2, "0");
+}
+async function loadWorkbenchShelf() {
+  const grid = $("shelfGrid");
+  if (!shelfLoggedIn()) {
+    grid.innerHTML = `<div class="shelf-empty">🔒 请先登录（右上角）<br>登录后工作台保存的有声书会出现在这里，并在睡前故事页同步可听</div>`;
+    return;
+  }
+  grid.innerHTML = `<div class="shelf-empty">📚 正在打开书架…</div>`;
+  try {
+    const r = await fetch(`${API}/me/audiobooks`, { headers: shelfAuthHeaders() });
+    if (r.status === 401) {
+      grid.innerHTML = `<div class="shelf-empty">登录已过期，请重新登录</div>`;
+      return;
+    }
+    const books = (await r.json()).books || [];
+    if (!books.length) {
+      grid.innerHTML = `<div class="shelf-empty">📚 书架还是空的<br>在「创作」里生成有声书后，点「💾 保存到书架」即可收藏<br>保存后睡前故事页也能同步收听</div>`;
+      return;
+    }
+    grid.innerHTML = books.map(b => {
+      const prog = getProg(b.id);
+      const pct = (prog && prog.dur) ? Math.min(100, prog.pos / prog.dur * 100) : 0;
+      const date = (b.created_at || "").slice(0, 10);
+      return `<div class="shelf-card" data-id="${b.id}">
+        <div class="sc-cover">${escapeHtml((b.title || "书")[0])}</div>
+        <div class="sc-info">
+          <div class="sc-title">${escapeHtml(b.title)}</div>
+          <div class="sc-meta">${fmtDur(b.dur_s)} · ${date}</div>
+          <div class="sc-prog"><i style="width:${pct}%"></i></div>
+        </div>
+        <div class="sc-actions">
+          <button class="sc-btn play" data-id="${b.id}" title="播放/暂停">▶</button>
+          <button class="sc-btn del" data-id="${b.id}" title="删除">✕</button>
+        </div>
+      </div>`;
+    }).join("");
+    grid.querySelectorAll(".sc-btn.play").forEach(btn => {
+      btn.onclick = () => toggleShelfPlay(btn.dataset.id, btn);
+    });
+    grid.querySelectorAll(".sc-btn.del").forEach(btn => {
+      btn.onclick = async () => {
+        const id = btn.dataset.id;
+        if (!confirm("确定从书架删除这本有声书吗？删除后睡前故事页也将不可收听。")) return;
+        if (shelfPlayingId === id) { shelfAudio.pause(); shelfPlayingId = null; }
+        try {
+          await fetch(`${API}/me/audiobooks/${id}`, { method: "DELETE", headers: shelfAuthHeaders() });
+          store.removeItem(_PROG_PREFIX + id);          // 进度同步清除（两页共用）
+          toast("已删除");
+          loadWorkbenchShelf();
+        } catch (e) { toast("删除失败，请重试"); }
+      };
+    });
+  } catch (e) {
+    grid.innerHTML = `<div class="shelf-empty">加载失败：${escapeHtml(String(e).slice(0, 60))}<br>请检查网络后点「↻ 刷新」重试</div>`;
+  }
+}
+function stopShelfAudio() {
+  if (shelfAudio) { shelfAudio.pause(); shelfAudio.src = ""; }
+  shelfPlayingId = null;
+  document.querySelectorAll(".shelf-grid .sc-btn.play").forEach(b => b.textContent = "▶");
+}
+function toggleShelfPlay(id, btn) {
+  if (shelfPlayingId === id && shelfAudio) {
+    /* 当前卡片 → 播放/暂停切换 */
+    if (shelfAudio.paused) shelfAudio.play().catch(() => {});
+    else shelfAudio.pause();
+    return;
+  }
+  stopShelfAudio();
+  shelfPlayingId = id;
+  btn.textContent = "⏳";
+  shelfAudio = new Audio(`${API}/me/audiobooks/${id}/audio`);
+  const prog = getProg(id);
+  let seekDone = false;
+  shelfAudio.onloadedmetadata = () => {
+    if (prog && prog.pos > 3000 && !seekDone) {
+      shelfAudio.currentTime = prog.pos / 1000;     // 与睡前故事页共享进度 → 自动续播
+      seekDone = true;
+    }
+  };
+  shelfAudio.ontimeupdate = () => {
+    if (!shelfAudio.duration) return;
+    saveProg(id, shelfAudio.currentTime * 1000, shelfAudio.duration * 1000);
+    const card = document.querySelector(`.shelf-card[data-id="${id}"] .sc-prog > i`);
+    if (card) card.style.width = (shelfAudio.currentTime / shelfAudio.duration * 100) + "%";
+    btn.textContent = shelfAudio.paused ? "▶" : "❚❚";
+  };
+  shelfAudio.onplay = () => { btn.textContent = "❚❚"; };
+  shelfAudio.onpause = () => { btn.textContent = "▶"; };
+  shelfAudio.onended = () => {
+    saveProg(id, 0, shelfAudio.duration * 1000);
+    const card = document.querySelector(`.shelf-card[data-id="${id}"] .sc-prog > i`);
+    if (card) card.style.width = "0%";
+    btn.textContent = "▶";
+  };
+  shelfAudio.onerror = () => { toast("音频加载失败，请稍后重试"); btn.textContent = "▶"; };
+  shelfAudio.play().catch(() => { toast("播放被浏览器拦截，请再点一次"); });
+}
 
 function fmt(s) {
   if (!s || !isFinite(s)) return "0:00";

@@ -362,8 +362,7 @@
   <div class="story-list" id="storyList"></div>
   <div id="shelfPage" style="display:none;">
     <div class="tabs" style="padding: 4px 4px 8px;">
-      <button class="tab active" id="uploadBookBtn" style="border-style: dashed;">＋ 上传读本（.txt）</button>
-      <input type="file" id="bookFile" accept=".txt,text/plain" style="display:none;">
+      <span class="tab" style="border:none;background:none;color:var(--ink-faint);">📚 收藏自工作台的成品有声书 · 点击即可收听</span>
     </div>
     <div id="shelfList"></div>
   </div>
@@ -414,20 +413,6 @@
 </div>
 
 <div id="toast"></div>
-
-<!-- 上传读本确认弹窗 -->
-<div id="upModal" style="display:none; position:fixed; inset:0; background:rgba(10,8,18,.7); z-index:98; align-items:center; justify-content:center;">
-  <div style="background:var(--card); border:1px solid var(--line); border-radius:16px; padding:24px 22px; max-width:360px; width:90vw;">
-    <div style="font-size:1.05rem; font-weight:700; margin-bottom:6px;">📚 上传读本</div>
-    <div style="font-size:.76rem; color:var(--ink-faint); margin-bottom:14px;" id="upMeta"></div>
-    <input id="upTitle" placeholder="书名（默认取文件名）" style="width:100%; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:11px 12px; color:var(--ink); font-size:.9rem; margin-bottom:12px; outline:none;">
-    <div style="font-size:.74rem; color:var(--ink-soft); line-height:1.7; margin-bottom:16px;" id="upPreview"></div>
-    <div style="display:flex; gap:9px;">
-      <button class="pill" id="upConfirm" style="flex:1; border-color:var(--accent); color:var(--accent); background:var(--accent-wash); padding:11px;">存入书架</button>
-      <button class="pill" id="upCancel" style="padding:11px;">取消</button>
-    </div>
-  </div>
-</div>
 
 <!-- 家长音色弹窗 -->
 <div id="pvModal" style="display:none; position:fixed; inset:0; background:rgba(10,8,18,.7); z-index:98; align-items:center; justify-content:center;">
@@ -1068,6 +1053,9 @@ async function _openStoryProceed(id, stayOnList) {
   renderTextBox();
   $("offlineBtn").textContent = isCached(id) ? "✓ 已离线" : "⤓ 离线";
   $("offlineBtn").classList.toggle("active", isCached(id));
+  /* 内置故事恢复离线/家长音色入口（书架条目收听时曾隐藏） */
+  $("offlineBtn").style.display = "";
+  $("parentVoiceBtn").style.display = "";
 
   stopClipPlayback();   // 清掉上一条播放链
   chainPending = false;
@@ -1801,7 +1789,6 @@ function getAuth() {
   try { return JSON.parse(store.getItem("sqAuth") || "null"); } catch { return null; }
 }
 let curView = "stories";        // stories | shelf | hist
-let pendingBook = null;         // 待确认上传的内容 {title, content, chars}
 
 function showView(v) {
   curView = v;
@@ -1847,108 +1834,77 @@ async function loadShelf() {
   const box = $("shelfList");
   box.innerHTML = `<div class="empty">📚 正在打开书架…</div>`;
   try {
-    const r = await fetch(API + "/me/books", { headers: authHeaders() });
+    /* 书架数据源 = 工作台保存的成品有声书（PG user_audiobooks，双端共享） */
+    const r = await fetch(API + "/me/audiobooks", { headers: authHeaders() });
     if (r.status === 401) { box.innerHTML = `<div class="empty">登录已过期，请重新登录</div>`; return; }
     const books = (await r.json()).books || [];
     if (!books.length) {
-      box.innerHTML = `<div class="empty">📚 书架还是空的<br>点上方「＋ 上传读本」把自己的书变成睡前有声书吧</div>`;
+      box.innerHTML = `<div class="empty">📚 书架还是空的<br>去工作台生成有声书，点「💾 保存到书架」后这里就能同步收听啦</div>`;
       return;
     }
     box.innerHTML = books.map(b => {
       const d = (b.created_at || "").slice(0, 10);
+      const prog = (() => { try { return JSON.parse(store.getItem(`sq_prog_${b.id}`) || "null"); } catch (e) { return null; } })();
+      const pct = (prog && prog.dur) ? Math.min(100, prog.pos / prog.dur * 100) : 0;
+      const listened = pct >= 99 ? "已听完" : (pct > 0 ? `已听 ${Math.round(pct)}%` : "未收听");
       return `<div class="shelf-item">
         <div class="si-info">
           <div class="si-title">${escapeHtml(b.title)}</div>
-          <div class="si-meta">${b.chars} 字 · ${d}</div>
+          <div class="si-meta">${fmtTime((b.dur_s || 0))} · ${listened} · ${d}</div>
         </div>
-        <button class="si-btn" data-id="${b.id}" data-title="${escapeHtml(b.title)}">▶ 有声化</button>
-        <button class="si-btn del" data-id="${b.id}" title="删除">✕</button>
+        <button class="si-btn" data-id="${b.id}" data-title="${escapeHtml(b.title)}">▶ 收听</button>
       </div>`;
     }).join("");
-    box.querySelectorAll(".si-btn:not(.del)").forEach(btn => {
-      btn.onclick = () => audiobookShelfBook(btn.dataset.id, btn.dataset.title, btn);
-    });
-    box.querySelectorAll(".si-btn.del").forEach(btn => {
-      btn.onclick = async () => {
-        if (!confirm("确定从书架删除这本读本吗？")) return;
-        await fetch(API + `/me/books/${btn.dataset.id}`, { method: "DELETE", headers: authHeaders() });
-        toast("已删除");
-        loadShelf();
-      };
+    box.querySelectorAll(".si-btn").forEach(btn => {
+      btn.onclick = () => playShelfBook(btn.dataset.id, btn.dataset.title, btn);
     });
   } catch (e) { box.innerHTML = `<div class="empty">加载失败：${escapeHtml(String(e).slice(0, 60))}</div>`; }
 }
 
-/* 读取书架正文并 bedtime 有声化（进入播放页，复用生成轮询） */
-async function audiobookShelfBook(bookId, title, btn) {
+/* 收听工作台保存的成品有声书（直接播流式音频，进度与工作台共享） */
+async function playShelfBook(bookId, title, btn) {
   if (pvBusy) return toast("有任务正在生成中，请稍候…");
-  const auth = getAuth();
-  if (!auth || !auth.token) return;
-  btn.disabled = true; btn.textContent = "读取中…";
-  let book;
+  btn.disabled = true; btn.textContent = "加载中…";
   try {
-    const r = await fetch(`${API}/me/books/${bookId}`, { headers: authHeaders() });
-    book = (await r.json()).book;
-  } catch (e) {}
-  btn.disabled = false; btn.textContent = "▶ 有声化";
-  if (!book) return toast("读本读取失败");
-  const hits = screenText(book.content);
-  if (hits.length) return toast("该读本含敏感内容（「" + hits.slice(0, 3).join("、") + "」），无法有声化", 4500);
-  if (book.chars > 10000) return toast("该读本超 1 万字，请先拆成多个文件分次上传", 4000);
-  showView("stories");
-  renderCustomStory(book.title, book.content);
+    /* HEAD 探测音频可达性（数据同步异常时的友好降级） */
+    const probe = await fetch(`${API}/me/audiobooks/${bookId}/audio`, { method: "HEAD" });
+    if (!probe.ok) throw new Error(probe.status === 404 ? "该有声书已被删除" : "HTTP " + probe.status);
+    const shelfId = "shelf-" + bookId;
+    curStory = { id: shelfId, title: title, age_group: "", tags: [], series: "单篇" };
+    curText = { text: "", chars: 0 };
+    curAudioId = shelfId;
+    stopClipPlayback();
+    if (audio) { audio.pause(); audio.src = ""; }
+    audio = new Audio(`${API}/me/audiobooks/${bookId}/audio`);
+    audio.preload = "auto";
+    audio.playbackRate = playRate;
+    bindAudioEvents();
+    setNowPlaying(shelfId, title || "未命名有声书");
+    $("list-page").style.display = "none";
+    $("player-page").style.display = "block";
+    showMiniIfListVisible();
+    $("plTitle").textContent = title;
+    $("plSub").textContent = "工作台有声书 · 大人小孩都能听";
+    $("plCover").innerHTML = coverImg("s01");
+    /* 书架条目不适用离线缓存与家长音色二次渲染 */
+    $("offlineBtn").style.display = "none";
+    $("parentVoiceBtn").style.display = "none";
+    window.scrollTo(0, 0);
+    segTimeline = [];
+    $("textBox").innerHTML = `<p style="color:var(--ink-faint);text-align:center;padding:30px 0;">🎧 正在播放工作台保存的有声书…</p>`;
+    const prog = getProgress(shelfId);
+    const resumePos = (prog && prog.pos > 3000) ? prog.pos / 1000 : 0;
+    applySleepTimer();
+    userPaused = false;
+    keepAliveOn();
+    clipChainStopped = true;
+    startListenTracking();
+    startStoryAt(resumePos);
+  } catch (e) {
+    toast("收听失败：" + String(e.message || e).slice(0, 60), 4000);
+  }
+  btn.disabled = false; btn.textContent = "▶ 收听";
 }
-
-/* 上传读本 */
-$("uploadBookBtn").onclick = () => {
-  const auth = getAuth();
-  if (!auth || !auth.token) {
-    return showPvModal("🔒", "还没登录", "登录后才能把读本存进你的专属书架哦。", "去登录 / 注册", () => location.href = "index.html");
-  }
-  $("bookFile").click();
-};
-$("bookFile").addEventListener("change", e => {
-  const f = e.target.files[0];
-  e.target.value = "";
-  if (!f) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    let text = "";
-    const bytes = new Uint8Array(reader.result);
-    try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
-    catch (err) { text = new TextDecoder("gbk").decode(bytes); }   // 网文 TXT 常见 GBK
-    text = text.trim();
-    if (!text) return toast("文件是空的");
-    pendingBook = { title: f.name.replace(/\.txt$/i, ""), content: text, chars: text.length };
-    $("upTitle").value = pendingBook.title;
-    $("upMeta").textContent = `${f.name} · ${pendingBook.chars} 字` + (pendingBook.chars > 30000 ? `（超 3 万字将截断）` : "");
-    $("upPreview").textContent = "开头预览：" + text.slice(0, 80) + "…";
-    $("upModal").style.display = "flex";
-  };
-  reader.readAsArrayBuffer(f);
-});
-$("upCancel").onclick = () => { $("upModal").style.display = "none"; pendingBook = null; };
-$("upConfirm").onclick = async () => {
-  if (!pendingBook) return;
-  const title = ($("upTitle").value || "").trim() || pendingBook.title;
-  const hits = screenText(pendingBook.content);
-  if (hits.length) {
-    $("upModal").style.display = "none"; pendingBook = null;
-    return toast("内容安全检查未通过（含「" + hits.slice(0, 3).join("、") + "」），请修改后再上传", 4500);
-  }
-  try {
-    const r = await fetch(API + "/me/books", {
-      method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ title, content: pendingBook.content })
-    });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
-    $("upModal").style.display = "none";
-    toast(j.truncated ? `已存入书架（超 3 万字已截断至 ${j.chars} 字）` : "📚 已存入书架", 3000);
-    pendingBook = null;
-    loadShelf();
-  } catch (e) { toast("上传失败：" + String(e.message || e).slice(0, 70), 4000); }
-};
 
 /* 历史 */
 function histIcon(kind) {

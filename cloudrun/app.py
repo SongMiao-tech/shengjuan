@@ -973,7 +973,8 @@ def create_task():
         style = "normal"
     task_id = uuid.uuid4().hex[:12]
     TASKS[task_id] = {"status": "running", "stage": "queued", "progress": "0",
-                      "segments": None, "audio_base64": None, "error": None}
+                      "segments": None, "audio_base64": None, "error": None,
+                      "narrator": narrator}
     bump("tasks")
     # 登录用户自动记会话历史（匿名任务不记）
     try:
@@ -1390,6 +1391,109 @@ def me_books_delete(book_id: str):
         return jsonify({"error": "未登录或登录已过期"}), 401
     try:
         r = _pg_request("DELETE", "user_books", params={"id": f"eq.{book_id}", "uid": f"eq.{uid}"})
+        return jsonify({"ok": True})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+
+
+# ───────── 成品有声书书架（工作台生成 → 保存 → 双端共享收听） ─────────
+AUDIO_B64_MAX = 60 * 1024 * 1024    # base64 上限 ≈ 45MB 音频
+
+
+@APP.post("/me/audiobooks")
+def me_audiobooks_create():
+    """把已完成任务的成品音频存入书架（body: {task_id, title}）"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    task_id = (data.get("task_id") or "").strip()
+    title = (data.get("title") or "").strip()[:80]
+    if not task_id or not title:
+        return jsonify({"error": "task_id 和 title 必填"}), 400
+    t = TASKS.get(task_id)
+    if not t or t.get("status") != "done" or not t.get("audio_base64"):
+        return jsonify({"error": "任务不存在或尚未完成"}), 404
+    b64 = t["audio_base64"]
+    if len(b64) > AUDIO_B64_MAX:
+        return jsonify({"error": "音频过大，暂无法保存到书架"}), 413
+    book_id = uuid.uuid4().hex[:16]
+    try:
+        r = _pg_request("POST", "user_audiobooks", json_body={
+            "id": book_id, "uid": uid, "title": title,
+            "narrator": t.get("narrator", ""),
+            "dur_s": t.get("duration_s", 0),
+            "size_bytes": len(b64) * 3 // 4,
+            "audio_b64": b64})
+        if r.status_code not in (200, 201):
+            return jsonify({"error": f"保存失败: {r.text[:200]}"}), 502
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+    _add_history(uid, "render", f"保存有声书《{title}》", {"shelf_id": book_id})
+    return jsonify({"ok": True, "id": book_id, "dur_s": t.get("duration_s", 0)})
+
+
+@APP.get("/me/audiobooks")
+def me_audiobooks_list():
+    """书架列表（元数据，不含音频体）"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    try:
+        r = _pg_request("GET", "user_audiobooks",
+                        params={"uid": f"eq.{uid}",
+                                "select": "id,title,narrator,dur_s,size_bytes,created_at",
+                                "order": "created_at.desc"})
+        rows = r.json() if r.status_code == 200 else []
+        return jsonify({"books": rows})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+
+
+@APP.get("/me/audiobooks/<book_id>/audio")
+def me_audiobooks_audio(book_id: str):
+    """流式取成品音频（不鉴权：id 为 16 位随机串难枚举；支持 Range 供拖拽 seek）"""
+    try:
+        r = _pg_request("GET", "user_audiobooks",
+                        params={"id": f"eq.{book_id}", "select": "audio_b64"})
+        rows = r.json() if r.status_code == 200 else []
+        if not rows:
+            return jsonify({"error": "not found"}), 404
+        audio_bytes = base64.b64decode(rows[0]["audio_b64"])
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+
+    total = len(audio_bytes)
+    rng = request.headers.get("Range", "")
+    m = re.match(r"bytes=(\d*)-(\d*)", rng)
+    if m and (m.group(1) or m.group(2)):
+        start = int(m.group(1)) if m.group(1) else max(0, total - int(m.group(2)))
+        end = int(m.group(2)) if m.group(2) else min(start + 512 * 1024, total - 1)
+        end = min(end, total - 1)
+        if start > end or start >= total:
+            return APP.response_class(status=416, headers={"Content-Range": f"bytes */{total}"})
+        chunk = audio_bytes[start:end + 1]
+        resp = APP.response_class(chunk, 206, mimetype="audio/mpeg")
+        resp.headers["Content-Range"] = f"bytes {start}-{end}/{total}"
+        resp.headers["Accept-Ranges"] = "bytes"
+        return resp
+    resp = APP.response_class(audio_bytes, 200, mimetype="audio/mpeg")
+    resp.headers["Accept-Ranges"] = "bytes"
+    return resp
+
+
+@APP.delete("/me/audiobooks/<book_id>")
+def me_audiobooks_delete(book_id: str):
+    """删除书架有声书（仅本人）"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    try:
+        r = _pg_request("DELETE", "user_audiobooks",
+                        params={"id": f"eq.{book_id}", "uid": f"eq.{uid}"})
         return jsonify({"ok": True})
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)[:200]}), 502
