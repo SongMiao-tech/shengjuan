@@ -865,8 +865,15 @@ function paintMiniProgress() {
 }
 function paintMiniBtn() {
   if (!nowPlaying) return;
+  /* 音频元素健在时，以真实播放状态为准回写（否则图标/文案会滞后） */
+  if (audio && audio.duration > 0 && curAudioId === nowPlaying.id) {
+    nowPlaying.paused = audio.paused;
+  }
+  saveNowPlaying();
   $("miniPlayBtn").innerHTML = nowPlaying.paused ? _playIcon : _pauseIcon;
   $("miniPlayBtn").setAttribute("aria-label", nowPlaying.paused ? "继续播放" : "暂停");
+  $("miniSub").textContent = nowPlaying.completed ? "已听完，点击重听"
+    : (nowPlaying.paused ? "已暂停" : "正在播放");
 }
 function showMiniIfListVisible() {
   const bar = $("miniPlayer");
@@ -1730,6 +1737,12 @@ document.addEventListener("WeixinJSBridgeReady", () => { keepAliveOn(); }, false
 window.addEventListener("pagehide", () => {
   if (audio && curAudioId && !curClip) saveProgress(curAudioId, audio.currentTime * 1000, audio.duration * 1000);
   flushListen(false, true);   // 收听增量随页面隐藏上报
+  /* 页面卸载 = 音频随之停止：存档标记为暂停态，下次进入图标/文案才不会显示成"播放中" */
+  if (nowPlaying) {
+    if (audio && curAudioId === nowPlaying.id) nowPlaying.posMs = audio.currentTime * 1000;
+    nowPlaying.paused = true;
+    saveNowPlaying();
+  }
 });
 $("offlineBtn").onclick = cacheCurrentStory;
 
@@ -2040,7 +2053,11 @@ refreshMyTabs();
 loadIndex();
 /* 恢复上次播放：列表页常驻迷你栏（点击跳回播放页 + 继续播放） */
 nowPlaying = loadNowPlaying();
-if (nowPlaying && nowPlaying.paused === undefined) nowPlaying.paused = true;
+if (nowPlaying) {
+  /* 页面重载后音频必然是停止的——忽略存档里的播放态，强制显示为暂停 */
+  nowPlaying.paused = true;
+  saveNowPlaying();
+}
 showMiniIfListVisible();
 </script>
 </body>
