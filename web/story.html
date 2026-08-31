@@ -34,7 +34,17 @@
   .moon { margin-left: auto; font-size: 1.4rem; }
 
   /* ---- 故事列表 ---- */
-  .tabs { display: flex; gap: 8px; padding: 12px 20px; }
+  .tabs { display: flex; gap: 8px; padding: 12px 20px; flex-wrap: wrap; }
+  .shelf-note {
+    display: flex; align-items: center; gap: 10px;
+    padding: 2px 20px 10px; color: var(--ink-faint); font-size: .8rem;
+  }
+  .shelf-note svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--accent-deep); opacity: .75; }
+  .shelf-note span { white-space: nowrap; }
+  @media (max-width: 560px) {
+    .shelf-note { align-items: flex-start; }
+    .shelf-note span { white-space: normal; line-height: 1.7; }
+  }
   .tab {
     border: 1px solid var(--line); background: transparent; color: var(--ink-soft);
     padding: 8px 16px; border-radius: 20px; font-size: .85rem; cursor: pointer; transition: all .15s;
@@ -363,8 +373,8 @@
   <div class="story-list" id="storyList"></div>
   <div id="shelfPage" style="display:none;">
     <div class="tabs" style="padding: 4px 4px 8px;">
-      <span class="tab" style="border:none;background:none;color:var(--ink-faint);display:inline-flex;align-items:center;gap:6px;"><svg class="tab-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5c2-1 4-1 6 0v14c-2-1-4-1-6 0z"/><path d="M10 5c2-1 4-1 6 0v14c-2-1-4-1-6 0"/><path d="M16 6.5c1.5-.8 3-1 4.5-.5l-2.6 13c-1.2-.4-2.4-.2-3.9.5"/></svg>收藏自工作台的成品有声书 · 点击即可收听</span>
     </div>
+      <div class="shelf-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5c2-1 4-1 6 0v14c-2-1-4-1-6 0z"/><path d="M10 5c2-1 4-1 6 0v14c-2-1-4-1-6 0"/><path d="M16 6.5c1.5-.8 3-1 4.5-.5l-2.6 13c-1.2-.4-2.4-.2-3.9.5"/></svg><span>来自工作台的成品有声书 · 点击即可收听</span></div>
     <div id="shelfList"></div>
   </div>
   <div id="histPage" style="display:none;"><div id="histList"></div></div>
