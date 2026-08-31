@@ -372,6 +372,10 @@ def analyze(text: str):
             seg["role"] = "旁白"
             seg["gender"] = "unknown"
     out = split_mixed_dialogue(out)
+    for seg in out:                                   # 拟声词兜底：引号救援拆出的纯拟声段归旁白
+        if _is_onomatopoeia(seg.get("text", "")):
+            seg["role"] = "旁白"
+            seg["gender"] = "unknown"
     if len(ANALYSIS_CACHE) > 200:               # 简单上限防内存膨胀
         ANALYSIS_CACHE.clear()
     ANALYSIS_CACHE[key] = out
