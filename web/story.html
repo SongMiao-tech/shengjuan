@@ -116,6 +116,48 @@
     -webkit-mask-image: linear-gradient(to top, #000 55%, transparent 100%);
     mask-image: linear-gradient(to top, #000 55%, transparent 100%);
   }
+
+  /* ---- 迷你播放栏（底部常驻，仅在列表页显示） ---- */
+  .mini-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    height: 60px; background: rgba(10, 8, 18, .92);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid var(--line);
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 16px; color: var(--ink);
+    cursor: pointer; transition: background .2s;
+  }
+  .mini-bar:hover { background: rgba(10, 8, 18, .96); }
+  .mini-bar .mini-cover {
+    width: 42px; height: 42px; border-radius: 8px; overflow: hidden;
+    background: var(--card); flex-shrink: 0; position: relative;
+  }
+  .mini-bar .mini-cover img { width: 100%; height: 100%; object-fit: cover; }
+  .mini-bar .mini-cover .mini-cover-emoji { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+  .mini-bar .mini-text { flex: 1; min-width: 0; }
+  .mini-bar .mini-title { font-size: .88rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mini-bar .mini-sub { font-size: .68rem; color: var(--ink-faint); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mini-bar .mini-play {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: var(--accent); color: #1a1a1a; border: none; font-size: .9rem;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0;
+  }
+  .mini-bar .mini-play:hover { transform: scale(1.06); }
+  .mini-bar .mini-play svg { display: block; }
+  .mini-bar .mini-progress {
+    position: absolute; left: 0; right: 0; top: 0; height: 2px;
+    background: rgba(255, 180, 84, .18);
+  }
+  .mini-bar .mini-progress > i {
+    display: block; height: 100%; background: var(--accent);
+    width: 0%; transition: width .35s linear;
+  }
+  @media (max-width: 480px) {
+    .mini-bar { height: 56px; padding: 0 12px; gap: 10px; }
+    .mini-bar .mini-cover { width: 38px; height: 38px; }
+    .mini-bar .mini-title { font-size: .82rem; }
+  }
   .back-row { display: flex; align-items: center; padding: 14px 0; }
   .back-btn {
     background: none; border: none; color: var(--ink-soft); font-size: .9rem;
@@ -524,6 +566,17 @@
   </div>
 </div>
 
+<!-- 迷你播放栏：仅在睡前故事列表页（list-page）常驻显示，播放页时隐藏 -->
+<div id="miniPlayer" class="mini-bar" style="display:none;" onclick="onMiniClick()">
+  <div class="mini-progress"><i id="miniBar"></i></div>
+  <div class="mini-cover" id="miniCover"></div>
+  <div class="mini-text">
+    <div class="mini-title" id="miniTitle">—</div>
+    <div class="mini-sub" id="miniSub">已暂停</div>
+  </div>
+  <button class="mini-play" id="miniPlayBtn" onclick="event.stopPropagation(); toggleMiniPlay();" aria-label="播放/暂停">▶</button>
+</div>
+
 <!-- 音箱投放引导弹窗 -->
 <div id="speakerModal" style="display:none; position:fixed; inset:0; background:rgba(10,8,18,.7); z-index:98; align-items:center; justify-content:center;">
   <div class="clip-modal-card">
@@ -746,6 +799,122 @@ function getProgress(id) {
 }
 function saveProgress(id, posMs, durMs) {
   store.setItem(`sq_prog_${id}`, JSON.stringify({ pos: posMs, dur: durMs, at: Date.now() }));
+  /* 同步当前播放摘要——退出应用/换设备后从工作台回来时恢复 */
+  if (id && nowPlaying && nowPlaying.id === id) {
+    nowPlaying.posMs = posMs;
+    nowPlaying.durMs = durMs;
+    saveNowPlaying();
+  }
+}
+
+/* ───────── 迷你播放栏状态机 ─────────
+   nowPlaying: { id, title, posMs, durMs, completed, paused }
+   列表页常驻，播放页隐藏，退出/重进自动恢复 */
+let nowPlaying = null;                              // 当前正在播放的篇目（null = 无）
+const NP_KEY = "sqNowPlaying";
+const _playIcon = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+const _pauseIcon = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
+
+function saveNowPlaying() {
+  if (nowPlaying) store.setItem(NP_KEY, JSON.stringify(nowPlaying));
+  else store.removeItem(NP_KEY);
+}
+function loadNowPlaying() {
+  try { return JSON.parse(store.getItem(NP_KEY) || "null"); } catch (e) { return null; }
+}
+function setNowPlaying(id, title) {
+  nowPlaying = { id, title: title || "", posMs: 0, durMs: 0, completed: false, paused: true };
+  saveNowPlaying();
+  showMiniIfListVisible();    // 由列表页可见性统一决定是否显示
+}
+function clearNowPlaying() {
+  if (!nowPlaying) return;
+  nowPlaying.completed = true;
+  nowPlaying.paused = true;
+  saveNowPlaying();
+  paintMiniContents();
+  showMiniIfListVisible();
+}
+function updateNowPlayingProgress() {
+  if (!nowPlaying || !audio || !audio.duration) return;
+  nowPlaying.posMs = audio.currentTime * 1000;
+  nowPlaying.durMs = audio.duration * 1000;
+  nowPlaying.paused = audio.paused;
+  saveNowPlaying();
+  paintMiniProgress();
+}
+function paintMiniContents() {
+  /* 只画内部内容（标题/封面/副标题/进度/按钮），不控制 display */
+  if (!nowPlaying) return;
+  $("miniTitle").textContent = nowPlaying.title || "未命名";
+  const c = $("miniCover");
+  c.innerHTML = coverImg(nowPlaying.id, nowPlaying.title ? "" : "🎵");
+  $("miniSub").textContent = nowPlaying.completed ? "已听完，点击重听" : (nowPlaying.paused ? "已暂停" : "正在播放");
+  paintMiniProgress();
+  paintMiniBtn();
+}
+function paintMiniProgress() {
+  if (!nowPlaying) return;
+  const pct = (nowPlaying.durMs > 0 && !nowPlaying.completed)
+    ? Math.min(100, (nowPlaying.posMs / nowPlaying.durMs) * 100) : 0;
+  $("miniBar").style.width = pct + "%";
+}
+function paintMiniBtn() {
+  if (!nowPlaying) return;
+  $("miniPlayBtn").innerHTML = nowPlaying.paused ? _playIcon : _pauseIcon;
+  $("miniPlayBtn").setAttribute("aria-label", nowPlaying.paused ? "继续播放" : "暂停");
+}
+function showMiniIfListVisible() {
+  const bar = $("miniPlayer");
+  if (!nowPlaying || $("list-page").style.display === "none") {
+    bar.style.display = "none";
+  } else {
+    paintMiniContents();
+    bar.style.display = "flex";
+  }
+}
+function toggleMiniPlay() {
+  if (!nowPlaying) return;
+  if (nowPlaying.completed) {
+    /* 已听完 → 跳到播放器从头播放 */
+    openNowPlaying(true);
+    return;
+  }
+  if (!curAudioId || curAudioId !== nowPlaying.id || audio.paused) {
+    /* 还没在播放（首点 / 跨篇目）→ 加载并播放 */
+    openNowPlaying(true);
+  } else {
+    userPaused = !userPaused;
+    if (userPaused) audio.pause(); else audio.play();
+    paintMiniBtn();
+  }
+}
+function onMiniClick() {
+  /* 点空白区 = 跳回播放页（保持当前 pos） */
+  openNowPlaying(false);
+}
+async function openNowPlaying(autoPlay) {
+  if (!nowPlaying) return;
+  const id = nowPlaying.id;
+  /* 复用既有的 openStory 流程，但跳过家长门禁（已经过过 / 离开时未过期） */
+  const target = (typeof _openStoryProceed === "function") ? _openStoryProceed : openStory;
+  if (curAudioId === id && audio && audio.duration > 0) {
+    /* 已经在播/已加载：仅切到播放页 */
+    $("list-page").style.display = "none";
+    $("player-page").style.display = "block";
+    $("miniPlayer").style.display = "none";
+    return;
+  }
+  /* 否则走一遍 openStory（会触发 setNowPlaying 重置——本函数应在 setNowPlaying 之后跑） */
+  $("list-page").style.display = "none";
+  $("player-page").style.display = "block";
+  $("miniPlayer").style.display = "none";
+  await target(id);
+  /* 跳到上次 pos */
+  if (nowPlaying && nowPlaying.posMs > 0 && audio && audio.duration > 0) {
+    try { audio.currentTime = nowPlaying.posMs / 1000; } catch (e) { /* 切 audio 不一定立即就绪 */ }
+  }
+  if (autoPlay) { userPaused = false; audio.play().catch(() => {}); }
 }
 
 /* 打开故事：先过家长控制门禁（就寝时段 / 每日上限），再进加载流程 */
@@ -852,8 +1021,9 @@ async function _openStoryProceed(id) {
 
   $("list-page").style.display = "none";
   $("player-page").style.display = "block";
+  showMiniIfListVisible();
   $("plTitle").textContent = meta.title;
-  const seriesText = (meta.series && meta.series !== "单篇")
+  const seriesText = (meta.series && meta.series !== "single")
     ? `《${meta.series}》第 ${meta.episode} 集 · ` : "";
   $("plSub").textContent = `${meta.age_group} 岁 · ${seriesText}${(meta.tags || []).join(" / ")}`;
   $("plCover").innerHTML = coverImg(id);
@@ -872,6 +1042,7 @@ async function _openStoryProceed(id) {
   audio.playbackRate = playRate;
   bindAudioEvents();
   setupMediaSession(meta);
+  setNowPlaying(id, meta.title || "");           // 注册到迷你栏 + 持久化
 
   const prog = getProgress(id);
   const resumePos = (prog && prog.pos > 30000) ? prog.pos / 1000 : 0;
@@ -911,6 +1082,7 @@ function bindAudioEvents() {
     $("tDur").textContent = fmtTime(audio.duration);
     if (Math.floor(audio.currentTime) % 5 === 0)
       saveProgress(curAudioId, audio.currentTime * 1000, audio.duration * 1000);
+    updateNowPlayingProgress();    // 同步迷你栏进度
   };
   /* 熄屏保活：浏览器（尤其微信内置浏览器）后台会自动 pause，非用户操作时自动恢复 */
   audio.onpause = () => {
@@ -929,6 +1101,7 @@ function bindAudioEvents() {
     if (clipChainStopped) return finishChain();
     if (clipEnabled("closing")) return startClipChain("closing");   // 正文结束 → 结尾语
     finishChain();
+    clearNowPlaying();                                   // 标记为「已听完」并刷新迷你栏
   };
 }
 
@@ -970,9 +1143,11 @@ $("playBtn").onclick = () => {
   if (m.paused) {
     userPaused = false;
     m.play(); $("playBtn").textContent = "❚❚"; $("plCover").classList.add("playing");
+    paintMiniBtn();
   } else {
     userPaused = true; keepAliveOff();
     m.pause(); $("playBtn").textContent = "▶"; $("plCover").classList.remove("playing");
+    paintMiniBtn();
   }
 };
 $("rewBtn").onclick = () => { const m = activeMedia(); if (m) m.currentTime = Math.max(0, m.currentTime - 15); };
@@ -1767,6 +1942,7 @@ async function loadHistory() {
 function renderCustomStory(title, content) {
   $("list-page").style.display = "none";
   $("player-page").style.display = "block";
+  showMiniIfListVisible();
   $("plTitle").textContent = title;
   $("plSub").textContent = "我的读本 · 有声化生成中";
   $("plCover").textContent = coverOf(title);
@@ -1829,6 +2005,7 @@ $("backBtn").onclick = () => {
   $("list-page").style.display = "block";
   refreshMyTabs();
   loadIndex();
+  showMiniIfListVisible();   // 返回列表页：显示迷你栏
 };
 
 /* 年龄筛选 */
@@ -1844,6 +2021,10 @@ document.querySelectorAll("#ageTabs .tb").forEach(btn => {
 refreshClipPill();
 refreshMyTabs();
 loadIndex();
+/* 恢复上次播放：列表页常驻迷你栏（点击跳回播放页 + 继续播放） */
+nowPlaying = loadNowPlaying();
+if (nowPlaying && nowPlaying.paused === undefined) nowPlaying.paused = true;
+showMiniIfListVisible();
 </script>
 </body>
 </html>
