@@ -245,14 +245,18 @@
   .m-btn.ghost:hover { border-color: var(--ink-soft); }
 
   .book-hit {
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
     padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px;
     cursor: pointer; margin-bottom: 8px; background: #fff;
     transition: border-color .18s ease, background .18s ease;
   }
   .book-hit:hover { border-color: var(--accent); background: var(--accent-wash); }
-  .book-hit-title { font-weight: 600; font-size: 0.9rem; }
-  .book-hit-meta { float: right; font-size: 0.72rem; color: var(--ink-faint); }
-  .book-hit-snippet { font-size: 0.76rem; color: var(--ink-soft); margin-top: 4px; line-height: 1.55; }
+  .book-hit-title {
+    font-weight: 600; font-size: 0.9rem; flex: 1; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .book-hit-meta { font-size: 0.72rem; color: var(--ink-faint); flex-shrink: 0; }
+  .book-hit-snippet { width: 100%; font-size: 0.76rem; color: var(--ink-soft); margin-top: 4px; line-height: 1.55; }
 
   /* 多版本 */
   .style-row { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
