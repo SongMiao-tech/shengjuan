@@ -483,10 +483,13 @@
   .shelf-card .sc-btn:hover { border-color: var(--accent); color: var(--accent-deep); }
   .shelf-card .sc-btn.del:hover { border-color: #dc2626; color: #dc2626; }
   .shelf-empty {
-    grid-column: 1 / -1; text-align: center; padding: 60px 20px;
-    color: var(--ink-faint); font-size: 0.9rem; line-height: 2;
+    grid-column: 1 / -1; text-align: center; padding: 48px 20px;
+    color: var(--ink-soft); font-size: 0.9rem; line-height: 2;
     border: 1px dashed var(--line-strong); border-radius: 12px;
   }
+  .shelf-empty svg { width: 34px; height: 34px; color: var(--ink-faint); margin-bottom: 10px; }
+  .shelf-empty .se-note { font-size: 0.78rem; color: var(--ink-faint); }
+  .bedtime-link svg { width: 15px; height: 15px; vertical-align: -2px; margin-right: 5px; }
   #saveShelfBtn {
     background: #fff; color: var(--ink-soft);
     border: 1px solid var(--line); border-radius: 6px;
@@ -545,7 +548,7 @@
   <div class="brand-sub">AUDIOBOOK STUDIO</div>
   <div class="conn"><span class="dot" id="connDot"></span><span id="connText">云端服务连接中</span></div>
   <div class="user-area bedtime-area">
-    <a class="user-btn bedtime-link" href="story.html" title="前往睡前故事应用">🌙 睡前故事</a>
+    <a class="user-btn bedtime-link" href="story.html" title="前往睡前故事应用"><svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13.5A8.5 8.5 0 0 1 10.5 4a7.5 7.5 0 1 0 9.5 9.5z"/></svg>睡前故事</a>
   </div>
   <div class="user-area" id="userArea">
     <button class="user-btn" id="loginBtn">登录 / 注册</button>
@@ -1743,7 +1746,7 @@ $("saveShelfBtn").onclick = async () => {
   const finalTitle = title.trim().slice(0, 80) || suggested;
   _shelfSaving = true;
   const btn = $("saveShelfBtn");
-  btn.disabled = true; btn.textContent = "⏳ 正在保存…";
+  btn.disabled = true; btn.textContent = "正在保存…";
   $("saveShelfHint").textContent = "音频较大时保存需要十几秒";
   try {
     const auth = JSON.parse(authRaw);
@@ -1756,7 +1759,7 @@ $("saveShelfBtn").onclick = async () => {
     if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
     $("saveShelfHint").textContent = "✓ 已存入书架，睡前故事页可同步收听";
     btn.textContent = "✓ 已保存";
-    $("noticeBox").textContent = "📚 已保存到书架，可在「书架」标签中查看，睡前故事页同步可听";
+    $("noticeBox").textContent = "已保存到书架，可在「书架」标签中查看，睡前故事页同步可听";
     $("noticeBox").classList.add("on");
   } catch (e) {
     $("saveShelfHint").textContent = "";
@@ -1794,7 +1797,7 @@ function fmtDur(s) {
 async function loadWorkbenchShelf() {
   const grid = $("shelfGrid");
   if (!shelfLoggedIn()) {
-    grid.innerHTML = `<div class="shelf-empty">🔒 请先登录（右上角）<br>登录后工作台保存的有声书会出现在这里，并在睡前故事页同步可听</div>`;
+    grid.innerHTML = `<div class="shelf-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><br>请先登录（右上角）<br><span class="se-note">登录后工作台保存的有声书会出现在这里，并在睡前故事页同步可听</span></div>`;
     return;
   }
   grid.innerHTML = `<div class="shelf-empty">📚 正在打开书架…</div>`;
@@ -1806,7 +1809,7 @@ async function loadWorkbenchShelf() {
     }
     const books = (await r.json()).books || [];
     if (!books.length) {
-      grid.innerHTML = `<div class="shelf-empty">📚 书架还是空的<br>在「创作」里生成有声书后，点「💾 保存到书架」即可收藏<br>保存后睡前故事页也能同步收听</div>`;
+      grid.innerHTML = `<div class="shelf-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5c2-1 4-1 6 0v14c-2-1-4-1-6 0z"/><path d="M10 5c2-1 4-1 6 0v14c-2-1-4-1-6 0"/><path d="M16 6.5c1.5-.8 3-1 4.5-.5l-2.6 13c-1.2-.4-2.4-.2-3.9.5"/></svg><br>书架还是空的<br><span class="se-note">在「创作」里生成有声书后，点「保存到书架」即可收藏<br>保存后睡前故事页也能同步收听</span></div>`;
       return;
     }
     grid.innerHTML = books.map(b => {

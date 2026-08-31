@@ -49,6 +49,7 @@
     cursor: pointer; transition: all .15s; display: inline-flex; align-items: center;
     gap: 5px; white-space: nowrap; font-family: inherit;
   }
+  .tb .tab-ic { width: 14px; height: 14px; color: var(--accent-deep); }
   .tb:hover { border-color: var(--accent); color: var(--ink); }
   .tb.active { background: var(--accent-wash); border-color: var(--accent); color: var(--accent); font-weight: 600; }
   .tb.sm { height: 30px; padding: 0 12px; font-size: .76rem; border-radius: 15px; }
@@ -346,11 +347,11 @@
   <div class="toolbar">
     <div class="toolbar-row">
       <button class="tb active" id="storiesTab">全部故事</button>
-      <button class="tb" id="shelfTab" style="display:none;">📚 我的书架</button>
-      <button class="tb" id="histTab" style="display:none;">🕘 历史</button>
+      <button class="tb" id="shelfTab" style="display:none;"><svg class="tab-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5c2-1 4-1 6 0v14c-2-1-4-1-6 0z"/><path d="M10 5c2-1 4-1 6 0v14c-2-1-4-1-6 0"/><path d="M16 6.5c1.5-.8 3-1 4.5-.5l-2.6 13c-1.2-.4-2.4-.2-3.9.5"/></svg>我的书架</button>
+      <button class="tb" id="histTab" style="display:none;"><svg class="tab-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>历史</button>
       <span class="push"></span>
-      <button class="tb tool" id="clipBtnList">🎵 开场 / 结尾</button>
-      <button class="tb tool" id="parentCenterBtn">📊 家长中心</button>
+      <button class="tb tool" id="clipBtnList"><svg class="tab-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M4 12h10M4 18h10"/><path d="M18 8v8M14.5 10l7 2-7 2"/></svg>开场 / 结尾</button>
+      <button class="tb tool" id="parentCenterBtn"><svg class="tab-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3.5 20c.5-3.5 2.5-5.5 5.5-5.5s5 2 5.5 5.5"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.6c2.8-.4 4.8 1.3 5.2 4.4"/></svg>家长中心</button>
     </div>
     <div class="toolbar-row" id="ageTabs">
       <span class="filter-label">年龄</span>
@@ -362,7 +363,7 @@
   <div class="story-list" id="storyList"></div>
   <div id="shelfPage" style="display:none;">
     <div class="tabs" style="padding: 4px 4px 8px;">
-      <span class="tab" style="border:none;background:none;color:var(--ink-faint);">📚 收藏自工作台的成品有声书 · 点击即可收听</span>
+      <span class="tab" style="border:none;background:none;color:var(--ink-faint);display:inline-flex;align-items:center;gap:6px;"><svg class="tab-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5c2-1 4-1 6 0v14c-2-1-4-1-6 0z"/><path d="M10 5c2-1 4-1 6 0v14c-2-1-4-1-6 0"/><path d="M16 6.5c1.5-.8 3-1 4.5-.5l-2.6 13c-1.2-.4-2.4-.2-3.9.5"/></svg>收藏自工作台的成品有声书 · 点击即可收听</span>
     </div>
     <div id="shelfList"></div>
   </div>
@@ -430,7 +431,7 @@
 <!-- 家长开场/结尾弹窗 -->
 <div id="clipModal" style="display:none; position:fixed; inset:0; background:rgba(10,8,18,.7); z-index:98; align-items:center; justify-content:center;">
   <div class="clip-modal-card">
-    <div class="cm-title">🎵 家长开场 / 结尾</div>
+    <div class="cm-title">家长开场 / 结尾</div>
     <div class="cm-sub" id="cmVoiceLine">用「我的音色」录制宝贝专属的开场与晚安语</div>
 
     <div class="cm-switch-row">
@@ -1540,7 +1541,7 @@ $("cmClose").onclick = () => { stopPreview(); $("clipModal").style.display = "no
 function refreshClipPill() {
   const sw = getClipSwitch();
   $("clipBtn").classList.toggle("active", !!sw.on);
-  $("clipBtn").textContent = sw.on ? "🎵 开场结尾 · 开" : "🎵 开场结尾 · 关";
+  $("clipBtn").textContent = sw.on ? "开场结尾 · 开" : "开场结尾 · 关";
 }
 
 
@@ -1832,14 +1833,14 @@ async function loadShelf() {
   const auth = getAuth();
   if (!auth || !auth.token) return;
   const box = $("shelfList");
-  box.innerHTML = `<div class="empty">📚 正在打开书架…</div>`;
+  box.innerHTML = `<div class="empty">正在打开书架…</div>`;
   try {
     /* 书架数据源 = 工作台保存的成品有声书（PG user_audiobooks，双端共享） */
     const r = await fetch(API + "/me/audiobooks", { headers: authHeaders() });
     if (r.status === 401) { box.innerHTML = `<div class="empty">登录已过期，请重新登录</div>`; return; }
     const books = (await r.json()).books || [];
     if (!books.length) {
-      box.innerHTML = `<div class="empty">📚 书架还是空的<br>去工作台生成有声书，点「💾 保存到书架」后这里就能同步收听啦</div>`;
+      box.innerHTML = `<div class="empty">书架还是空的<br>去工作台生成有声书并保存后，这里就能同步收听</div>`;
       return;
     }
     box.innerHTML = books.map(b => {
@@ -1891,7 +1892,7 @@ async function playShelfBook(bookId, title, btn) {
     $("parentVoiceBtn").style.display = "none";
     window.scrollTo(0, 0);
     segTimeline = [];
-    $("textBox").innerHTML = `<p style="color:var(--ink-faint);text-align:center;padding:30px 0;">🎧 正在播放工作台保存的有声书…</p>`;
+    $("textBox").innerHTML = `<p style="color:var(--ink-faint);text-align:center;padding:30px 0;">正在播放工作台保存的有声书…</p>`;
     const prog = getProgress(shelfId);
     const resumePos = (prog && prog.pos > 3000) ? prog.pos / 1000 : 0;
     applySleepTimer();
