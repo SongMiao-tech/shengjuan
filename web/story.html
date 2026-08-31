@@ -1787,7 +1787,7 @@ async function startCustomRender(title, content) {
   try {
     const r = await fetch(API + "/tasks", {
       method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ text: content, title: title, narrator: "ttv-voice-2026082710331426-UpOQXpI8", style: "bedtime", bgm: true })
+      body: JSON.stringify({ text: content, title: title, narrator: "zh_female_yingtaowanzi_uranus_bigtts", style: "bedtime", bgm: true })
     });
     if (!r.ok) throw new Error((await r.json()).error || "HTTP " + r.status);
     const { task_id } = await r.json();
