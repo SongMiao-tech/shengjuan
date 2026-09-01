@@ -228,6 +228,13 @@
    - **双语 → 英语（纯外语）**：前端 chip data-style 与 STYLE_CN 键 bilingual→english、标签改「英语」；后端 style=="english" 分支由「中文段+英文段交替」改为「整段替换为英文翻译（GLM 逐段翻译，个别段失败降级保留中文）」，style 白名单同步替换。E2E：小文本 style=english 实测两段全部 en=True 纯英文朗读、无中文交替。README/PRD 口径同步。
    - 部署细节：静态托管 story.html/index.html 上传后 curl 特征值验证；后端 048 构建完成后经灰度自动全量（FlowRatio 0→100），首次 E2E 跑在旧实例上结果无效——**灰度未完成前不要做接口验证**。
 
+2. **英语版多段落翻译整篇降级修复**（commit b85cac1，前端 index.html + 后端 audiobook-api-050 已部署）：用户反馈多段落文本用「英语」生成结果全中文。根因：translate_segments 把全部段落文本塞进单次 GLM 调用，输出过长超时/JSON 截断 → [None]*n 静默降级。修复：分批翻译（每批 ≤4 段且 ≤700 字，_batch_texts 分组），**批间独立降级**——单批失败只影响该批段落；翻译失败段数写入任务状态 note 字段，前端 poll()/多版本循环在 noticeBox 展示「有 N 段英文翻译失败，这些段落将保留中文朗读」。E2E：9 段西游记对话文本实测 en=5/zh=4（不再整篇降级），note 正确透出。
+3. **火山 TTS 全音色 55000000 排查（账号侧，未解决）**：修复验证中发现 TTS 合成全挂——中英文所有音色报 `code=55000000 resource ID is mismatched with speaker related resource`（今晨 048 时代 E2E 尚正常）。对照官方错误码表 + 社区案例：seed-tts-2.0 实例不含 bigtts 音色目录、free 额度用尽也会引发此错。实测 `volc.service_type.291` / `volc.service_type.10029` 均 `45000030 requested resource not granted`（账号未开通）；代码已恢复走 seed-tts-2.0，pick_resource 加 TTS_RESOURCE env 覆盖口子（commit b648435，audiobook-api-052）。**待用户到火山引擎控制台确认：语音合成服务免费额度是否用尽 / 是否需开通正式版**。
+
+### 遗留/建议（09-01 新增）
+
+- 🔴 TTS 合成当前不可用（账号资源侧）：去火山引擎控制台 → 语音技术 → 确认免费额度/开通状态；若需换 resource id，改 EnvParams 里 TTS_RESOURCE 即可，无需改代码。
+
 ---
 
 ## 待办/下一步
