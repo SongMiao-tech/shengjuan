@@ -432,8 +432,21 @@
     <div id="pvTitle" style="font-size:1.05rem; font-weight:700; margin-bottom:8px;"></div>
     <div id="pvDesc" style="font-size:.82rem; color:var(--ink-soft); line-height:1.7; margin-bottom:18px;"></div>
     <div id="pvActions" style="display:flex; flex-direction:column; gap:9px;">
-      <button class="pill" id="pvGo" style="border-color:var(--accent); color:var(--accent); background:var(--accent-wash); padding:11px;">去工作台生成「我的声音」</button>
+      <button class="pill" id="pvGo" style="border-color:var(--accent); color:var(--accent); background:var(--accent-wash); padding:11px;">去工作台创造声音</button>
       <button class="pill" id="pvCancel" style="padding:11px;">先不了</button>
+    </div>
+  </div>
+</div>
+
+<!-- 音色库选择弹窗（爸妈的声音讲：从「我的音色库」挑选音色） -->
+<div id="pvLibModal" style="display:none; position:fixed; inset:0; background:rgba(10,8,18,.7); z-index:98; align-items:center; justify-content:center;">
+  <div style="background:var(--card); border:1px solid var(--line); border-radius:16px; padding:22px 20px; max-width:380px; width:90vw; max-height:72vh; display:flex; flex-direction:column;">
+    <div style="font-size:1.02rem; font-weight:700; margin-bottom:4px;">🎙️ 选择讲故事的音色</div>
+    <div id="pvLibSub" style="font-size:.76rem; color:var(--ink-soft); margin-bottom:12px;"></div>
+    <div id="pvLibList" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; min-height:0;"></div>
+    <div style="display:flex; gap:9px; margin-top:12px;">
+      <button class="pill" id="pvLibCancel" style="flex:1; padding:11px;">取消</button>
+      <button class="pill" id="pvLibGo" style="flex:1.6; padding:11px; border-color:var(--accent); color:var(--accent); background:var(--accent-wash);">用这个声音讲</button>
     </div>
   </div>
 </div>
@@ -1253,7 +1266,7 @@ $("textToggle").onclick = () => {
   box.style.display = box.style.display === "none" ? "block" : "none";
 };
 
-/* ───────── 家长音色代读（复用工作台「我的声音」） ───────── */
+/* ───────── 家长音色代读（从「我的音色库」挑音色，复用工作台音色库） ───────── */
 function getAuth() {
   try { return JSON.parse(store.getItem("sqAuth") || "null"); } catch { return null; }
 }
@@ -1268,41 +1281,93 @@ function showPvModal(icon, title, desc, goLabel, goAction) {
 }
 $("pvCancel").onclick = () => { $("pvModal").style.display = "none"; };
 
+/* 音色库条目归一（兼容云端 {voice_id,name} 与旧本地 {id,name} 两种格式） */
+function normLibRows(rows) {
+  return (rows || []).map(r => ({
+    voice_id: r.voice_id || r.id, name: r.name,
+    dialect: r.dialect || null, tag: r.tag || r.source || ""
+  })).filter(v => v.voice_id && v.name);
+}
+function pvLocalLib() {
+  try { return normLibRows(JSON.parse(store.getItem("sqVoices") || "[]")); } catch { return []; }
+}
+/* 加载音色库：登录=云端全量（失败回落本机缓存），未登录=本机 */
+async function pvLoadLib() {
+  const auth = getAuth();
+  if (auth && auth.token) {
+    try {
+      const r = await fetch(API + "/me/voices", { headers: authHeaders() });
+      if (r.ok) return { rows: normLibRows((await r.json()).voices), cloud: true };
+    } catch (e) { /* 网络失败回落本地 */ }
+  }
+  return { rows: pvLocalLib(), cloud: false };
+}
+
+/* ── 音色库选择弹窗 ── */
+let pvPicked = null;
+async function openPvLibPicker() {
+  const { rows, cloud } = await pvLoadLib();
+  if (!rows.length) {
+    const auth = getAuth();
+    return showPvModal("🎙️", "音色库还是空的",
+      auth && auth.token
+        ? "去工作台用「智能生成」或「创造新声音」做一个专属声音，回来就能用它讲故事啦。"
+        : "登录声卷账号并创造一个专属声音，就能用它给孩子讲故事啦。",
+      "去工作台创造声音", () => location.href = "index.html");
+  }
+  pvPicked = rows[0];
+  $("pvLibSub").textContent = (cloud ? "来自你的账号音色库，各设备同步" : "未登录 · 仅本机音色")
+    + ` · 选一个来读《${curStory.title}》`;
+  $("pvLibList").innerHTML = rows.map((v, i) => `
+    <div class="pv-lib-row" data-i="${i}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;background:var(--card-hi);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:.88rem;font-weight:600;">${escapeHtml(v.name)}</div>
+        <div style="font-size:.7rem;color:var(--ink-soft);">${escapeHtml(String(v.tag || ""))}</div>
+      </div>
+      <span class="pv-lib-check" style="font-size:.95rem;color:var(--accent);"></span>
+    </div>`).join("");
+  const refresh = () => {
+    $("pvLibList").querySelectorAll(".pv-lib-row").forEach(el => {
+      const v = rows[+el.dataset.i];
+      const on = pvPicked && v.voice_id === pvPicked.voice_id;
+      el.style.borderColor = on ? "var(--accent)" : "var(--line)";
+      el.querySelector(".pv-lib-check").textContent = on ? "✓" : "";
+    });
+  };
+  $("pvLibList").querySelectorAll(".pv-lib-row").forEach(el => {
+    el.onclick = () => { pvPicked = rows[+el.dataset.i]; refresh(); };
+  });
+  refresh();
+  $("pvLibModal").style.display = "flex";
+}
+$("pvLibCancel").onclick = () => { $("pvLibModal").style.display = "none"; };
+$("pvLibGo").onclick = () => {
+  if (!pvPicked) return toast("先挑一个音色");
+  $("pvLibModal").style.display = "none";
+  const est = Math.max(60, Math.round(curText.chars / 4.5));
+  showPvModal("👨‍👩‍👧", `用「${pvPicked.name}」讲《${curStory.title}》？`,
+    `需要实时生成，大约 ${est > 90 ? Math.round(est / 60) + " 分钟" : est + " 秒"}，生成期间可以先听原来的版本。`,
+    "开始生成", () => { $("pvModal").style.display = "none"; startParentVoiceRender(pvPicked); });
+};
+
 let pvBusy = false;
 $("parentVoiceBtn").onclick = async () => {
   if (pvBusy) return toast("爸妈声音版正在生成中，请稍候…");
   if (!curText) return toast("先打开一个故事");
-  const auth = getAuth();
-  if (!auth || !auth.token) {
-    return showPvModal("🔒", "还没登录",
-      "用爸妈的声音讲故事，需要先登录声卷账号哦。", "去登录 / 注册", () => location.href = "index.html");
-  }
-  toast("正在检查你的专属声音…");
-  let voice = null;
-  try {
-    const r = await fetch(API + "/me/voice", { headers: { Authorization: `Bearer ${auth.token}` } });
-    if (r.ok) voice = (await r.json()).voice;
-  } catch (e) { /* 网络失败按无声音处理 */ }
-  if (!voice) {
-    return showPvModal("🎙️", "还没有「我的声音」",
-      "去工作台录一小段话，故事就能用你的声音讲啦。",
-      "去工作台生成「我的声音」", () => location.href = "index.html");
-  }
-  const est = Math.max(60, Math.round(curText.chars / 4.5));
-  showPvModal("👨‍👩‍👧", `用「${voice.name}」讲《${curStory.title}》？`,
-    `需要实时生成，大约 ${est > 90 ? Math.round(est / 60) + " 分钟" : est + " 秒"}，生成期间可以先听原来的版本。`,
-    "开始生成", () => { $("pvModal").style.display = "none"; startParentVoiceRender(voice); });
+  toast("正在打开你的音色库…");
+  await openPvLibPicker();
 };
 
 async function startParentVoiceRender(voice) {
   pvBusy = true;
   const btn = $("parentVoiceBtn");
   btn.textContent = "生成中…";
-  toast("🎙️ 正在用爸妈的声音生成这个故事…", 5000);
+  toast(`🎙️ 正在用「${voice.name}」的声音生成这个故事…`, 5000);
   try {
     const r = await fetch(API + "/tasks", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: curText.text, narrator: voice.speaker_id, style: "bedtime", bgm: true })
+      body: JSON.stringify({ text: curText.text, narrator: voice.voice_id,
+                             dialect: voice.dialect || null, style: "bedtime", bgm: true })
     });
     if (!r.ok) throw new Error((await r.json()).error || "HTTP " + r.status);
     const { task_id } = await r.json();
@@ -1394,9 +1459,14 @@ async function openClipEditor() {
     if (r.ok) voice = (await r.json()).voice;
   } catch (e) { /* 网络失败按无声音处理 */ }
   if (!voice) {
-    return showPvModal("🎙️", "还没有「我的声音」",
-      "去工作台生成「我的声音」，就能录制宝贝专属的开场与晚安语啦。",
-      "去工作台生成「我的声音」", () => location.href = "index.html");
+    /* 旧「我的声音」已迁移到音色库：回落取音色库第一个音色，保持开场/结尾可用 */
+    const lib = await pvLoadLib();
+    if (lib.rows.length) voice = { speaker_id: lib.rows[0].voice_id, name: lib.rows[0].name };
+  }
+  if (!voice) {
+    return showPvModal("🎙️", "还没有可用的音色",
+      "去工作台创造一个专属声音，就能录制宝贝专属的开场与晚安语啦。",
+      "去工作台创造声音", () => location.href = "index.html");
   }
   clipVoice = voice;
   const saved = getClips();

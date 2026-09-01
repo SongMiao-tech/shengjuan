@@ -673,6 +673,20 @@ def cosy_tts_bytes(text: str, voice_id: str) -> bytes:
     return au.content
 
 
+def cosy_delete_voice(voice_id: str) -> None:
+    """CosyVoice 删除音色（与 create_voice 同入口的 delete_voice action）。失败抛异常"""
+    body = {"model": "voice-enrollment",
+            "input": {"action": "delete_voice", "voice_id": voice_id}}
+    r = requests.post(f"{cosy_base()}/services/audio/tts/customization",
+                      headers={"Authorization": f"Bearer {os.environ['DASHSCOPE_API_KEY']}",
+                               "Content-Type": "application/json"},
+                      json=body, timeout=30)
+    obj = r.json()
+    if r.status_code != 200 or obj.get("code"):
+        raise RuntimeError(f"CosyVoice 删除失败: {obj.get('message') or 'HTTP ' + str(r.status_code)}")
+    log(f"[cosy-design] 云端音色已删除: {voice_id}")
+
+
 def custom_tts_bytes(text: str, voice_id: str) -> bytes:
     """自定义音色（设计类）合成分发：按 voice_id 前缀选厂商"""
     if voice_id.startswith("cosyvoice"):
@@ -1773,6 +1787,50 @@ def me_voices_delete(voice_id: str):
         if r.status_code not in (200, 204):
             return jsonify({"error": f"删除失败: {r.text[:200]}"}), 502
         return jsonify({"voices": _library_list(uid)})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+
+
+@APP.delete("/voices/custom/<voice_id>")
+def voice_custom_delete(voice_id: str):
+    """删除自定义音色（自定义音色管理界面入口，与音色库删除相互独立）：
+    云端音色资源（CosyVoice delete_voice）+ 设计缓存 + 本人音色库条目一并清理。
+    仅允许删除本人音色库中存在的条目（防越权删他人/未收藏的云端音色）"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    voice_id = (voice_id or "").strip()
+    if not voice_id or len(voice_id) > 200:
+        return jsonify({"error": "voice_id 无效"}), 400
+    try:
+        rows = _library_list(uid)
+        if not any(r.get("voice_id") == voice_id for r in rows):
+            return jsonify({"error": "音色不在你的音色库中，无法删除"}), 404
+        # 1) 云端资源删除：仅 CosyVoice 设计音色（克隆为共享槽位、MiniMax 无删除接口，均不动）
+        provider_deleted = False
+        note_parts = []
+        if voice_id.startswith("cosyvoice-") and "-vd-" in voice_id and cosy_enabled():
+            try:
+                cosy_delete_voice(voice_id)
+                provider_deleted = True
+            except Exception as e:  # noqa: BLE001
+                log(f"[custom-del] 云端音色删除失败（继续本地清理）: {e}")
+                note_parts.append(f"云端音色清理失败（{str(e)[:80]}），已从列表移除")
+        # 2) 设计缓存清理：音色已删则不可再合成，命中缓存只会失败
+        try:
+            _pg_request("DELETE", "voice_design_cache", params={"voice_id": f"eq.{voice_id}"})
+        except Exception as e:  # noqa: BLE001
+            log(f"[custom-del] 设计缓存清理失败: {e}")
+        # 3) 本人音色库条目删除
+        r = _pg_request("DELETE", "user_voice_library",
+                        params={"uid": f"eq.{uid}", "voice_id": f"eq.{voice_id}"})
+        if r.status_code not in (200, 204):
+            return jsonify({"error": f"删除失败: {r.text[:200]}"}), 502
+        if provider_deleted:
+            note_parts.append("云端音色资源已删除")
+        return jsonify({"voices": _library_list(uid), "provider_deleted": provider_deleted,
+                        "note": "；".join(note_parts)})
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)[:200]}), 502
 

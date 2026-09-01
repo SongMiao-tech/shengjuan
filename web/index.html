@@ -2156,6 +2156,10 @@ function openVoiceMenu() {
         <div class="path-desc">朗读一段文字完成录音，用你的真实音色克隆专属声线。</div>
       </div>
     </div>
+    <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px;">
+      <div style="font-size:.8rem;color:var(--ink-soft);">已创造的声音<span style="color:var(--ink-faint);">（删除入口，与左侧「我的音色库」相互独立）</span></div>
+      <div id="customManage"></div>
+    </div>
     <div class="m-actions"><button class="m-btn ghost" onclick="closeModal()">取消</button></div>`);
   $("pathSmart").style.display = DESIGN_CLOSED ? "none" : "";
   $("pathDesign").style.display = DESIGN_CLOSED ? "none" : "";
@@ -2164,6 +2168,54 @@ function openVoiceMenu() {
     $("pathDesign").onclick = openDesignPanel;
   }
   $("pathClone").onclick = openClonePanel;
+  renderCustomManage();
+}
+
+/* ── 自定义音色管理：删除（云端音色资源 + 设计缓存 + 音色库条目一并清理） ── */
+function renderCustomManage() {
+  const box = $("customManage");
+  if (!box) return;
+  const items = myVoices.filter(v => ["design", "smart", "clone"].includes(v.source));
+  if (!items.length) {
+    box.innerHTML = `<div style="font-size:.78rem;color:var(--ink-faint);text-align:center;padding:10px 0;">还没有创造过声音，先在上方选一种方式开始吧。</div>`;
+    return;
+  }
+  box.innerHTML = items.map(v => {
+    const tag = { clone: "声音复刻", design: "AI 设计", smart: "智能生成" }[v.source] || v.source;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;margin-top:6px;background:var(--paper-sunken);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:.85rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(v.name)}</div>
+        <div style="font-size:.7rem;color:var(--ink-faint);">${tag}</div>
+      </div>
+      <button class="mv-btn voice-del" data-cdel="${escapeHtml(v.voice_id)}" data-cname="${escapeHtml(v.name)}" title="删除该音色">🗑</button>
+    </div>`;
+  }).join("");
+  box.querySelectorAll("[data-cdel]").forEach(b => b.onclick = () => deleteCustomVoice(b.dataset.cdel, b.dataset.cname));
+}
+
+async function deleteCustomVoice(voiceId, name) {
+  if (!confirm(`确定删除音色「${name}」？\n\n删除后该声音无法恢复，音色列表与音色库会同步移除${userToken ? "，云端音色资源将一并清理。" : "（未登录，仅清理本机）。"}`)) return;
+  try {
+    if (userToken) {
+      const r = await fetch(API + "/voices/custom/" + encodeURIComponent(voiceId),
+                            { method: "DELETE", headers: meHeaders() });
+      if (r.status === 401) { await doLogout(); return; }
+      const obj = await r.json();
+      if (!r.ok) throw new Error(obj.error || "HTTP " + r.status);
+      myVoices = normLibItems(obj.voices);
+      localVoicesSave();
+    } else {
+      myVoices = myVoices.filter(x => x.voice_id !== voiceId);
+      localVoicesSave();
+    }
+    if (narrator === voiceId) narrator = BASE_VOICES[0].id;   // 正在用的音色被删则回退默认
+    VOICES = VOICES.filter(x => x.id !== voiceId && x.speaker_id !== voiceId);
+    renderMyVoices();
+    renderVoices();
+    renderCustomManage();
+  } catch (e) {
+    alert("删除失败：" + String(e.message || e).slice(0, 100));
+  }
 }
 
 /* 音色设计开关：true=隐藏入口（停 MiniMax），false=开放。DASHSCOPE_API_KEY 已配置，当前走 CosyVoice 免费设计（后端 DESIGN_CLOSED 同步改） */
