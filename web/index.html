@@ -531,6 +531,9 @@
     footer { padding: 20px 24px; flex-direction: column; gap: 6px; }
     .seg-item { grid-template-columns: 34px 1fr; }
     .seg-meta { grid-column: 2; text-align: left; margin-top: 4px; }
+    /* 书架视图下音色选择侧栏藏起来（窄屏堆叠时会挡在书架上方两屏） */
+    body.v-shelf aside { display: none; }
+    body.v-shelf .work-head { display: none; }
   }
   @media (max-width: 640px) {
     header { padding: 12px 14px; }
@@ -546,6 +549,13 @@
     .path-grid { grid-template-columns: 1fr; }
     .seg-item { grid-template-columns: 28px 1fr; }
     .work-head h1, .work-title { font-size: 1.15rem; }
+    /* 区块头部两行化：标题+按钮一行，副题独占一行；按钮禁止竖排折行 */
+    .sec-head { flex-wrap: wrap; row-gap: 4px; padding: 12px 14px; }
+    .sec-sub { flex-basis: 100%; order: 3; }
+    .sec-actions button { white-space: nowrap; }
+    .shelf-empty { text-wrap: balance; }
+    .shelf-card .sc-btn { width: 40px; height: 40px; font-size: .88rem; }
+    .shelf-card .sc-btn.dl { font-size: .7rem; }
   }
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
@@ -1881,6 +1891,8 @@ function switchView(v) {
     b.classList.toggle("active", b.dataset.view === v));
   $("createView").style.display = v === "create" ? "block" : "none";
   $("shelfView").style.display = v === "shelf" ? "block" : "none";
+  /* 手机端：书架视图下隐藏音色选择侧栏（堆叠布局里挡在书架前面） */
+  document.body.classList.toggle("v-shelf", v === "shelf");
   if (v === "shelf") loadWorkbenchShelf();
 }
 document.querySelectorAll("#viewTabs .view-tab").forEach(btn => {
