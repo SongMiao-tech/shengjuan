@@ -334,6 +334,9 @@
 
   textarea {
     width: 100%; min-height: 220px; resize: vertical;
+    /* 编辑画布填满首屏：视口高减去上方（头部+标题区+页签 ≈273px）与下方（字数行+按钮+底留白 ≈175px），
+       空闲时不再出现编辑器下方的大片留白；260~720px 兜底防极端屏 */
+    height: clamp(260px, calc(100vh - 448px), 720px);
     padding: 20px 22px;
     border: 1px solid var(--line); border-radius: 8px;
     background: #fff; color: var(--ink);
