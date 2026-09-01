@@ -592,6 +592,50 @@ def minimax_tts_bytes(text: str, voice_id: str) -> bytes:
     return bytes.fromhex(obj["data"]["audio"])
 
 
+# ---------- 音色设计缓存（按描述哈希，避免为同一句描述重复付设计费） ----------
+# MiniMax 音色设计按次计费（约 ¥21.6/个），同描述重复调用纯属浪费。
+# 缓存全局共享（跨用户），PG 不可用时优雅降级为不缓存，不阻塞主流程。
+
+def design_cache_key(prompt: str) -> str:
+    """描述归一化后取 sha256 前 32 位：忽略空白与大小写差异"""
+    norm = _re.sub(r"\s+", "", prompt).lower()
+    return hashlib.sha256(norm.encode("utf-8")).hexdigest()[:32]
+
+
+def design_cache_get(key: str):
+    """命中返回 voice_id，未命中或 PG 不可用返回 None"""
+    if not CB_SERVICE_KEY:
+        return None
+    try:
+        r = _pg_request("GET", "voice_design_cache",
+                        params={"prompt_hash": f"eq.{key}", "select": "voice_id,use_count"})
+        if r.status_code != 200:
+            return None
+        rows = r.json()
+        if not isinstance(rows, list) or not rows:
+            return None
+        voice_id = (rows[0] or {}).get("voice_id")
+        if not voice_id:
+            return None
+        _pg_request("PATCH", "voice_design_cache", params={"prompt_hash": f"eq.{key}"},
+                    json_body={"use_count": int(rows[0].get("use_count") or 1) + 1})
+        return voice_id
+    except Exception as e:  # noqa: BLE001
+        log(f"[design-cache] 查询失败，跳过缓存: {e}")
+        return None
+
+
+def design_cache_put(key: str, prompt: str, voice_id: str) -> None:
+    if not CB_SERVICE_KEY:
+        return
+    try:
+        _pg_request("POST", "voice_design_cache", upsert=True,
+                    json_body={"prompt_hash": key, "prompt": prompt[:500],
+                               "voice_id": voice_id, "provider": "minimax"})
+    except Exception as e:  # noqa: BLE001
+        log(f"[design-cache] 写入失败，忽略: {e}")
+
+
 # ---------- 豆包声音复刻训练 ----------
 CLONE_URL = "https://openspeech.bytedance.com/api/v3/tts/voice_clone"
 DEFAULT_CLONE_SPEAKER = "S_7PtM1phd2"
@@ -1115,10 +1159,23 @@ def voice_design():
     if not prompt:
         return jsonify({"error": "prompt required"}), 400
     preview = "你好，我是由声卷为你量身定制的声音，很高兴认识你，希望你喜欢我讲的故事。"
+    ckey = design_cache_key(prompt)
+    cached_id = design_cache_get(ckey)
+    if cached_id:
+        log(f"[design] 命中缓存 {ckey} -> {cached_id}，不重复收取设计费")
+        try:
+            preview_b64 = base64.b64encode(minimax_tts_bytes(preview, cached_id)).decode("ascii")
+        except Exception as e:  # noqa: BLE001
+            return jsonify({"error": str(e)[:300]}), 502
+        return jsonify({"voice_id": cached_id, "preview_base64": preview_b64,
+                        "cached": True,
+                        "note": "已复用相同描述的历史音色，本次不产生设计费"})
     try:
         voice_id, preview_b64 = minimax_design(prompt, preview)
+        design_cache_put(ckey, prompt, voice_id)
         return jsonify({"voice_id": voice_id, "preview_base64": preview_b64,
-                        "note": "设计费已在本次试听合成时收取"})
+                        "cached": False,
+                        "note": "设计费已在本次试听合成时收取（约 ¥21.6），相同描述后续将自动复用"})
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)[:300]}), 502
 

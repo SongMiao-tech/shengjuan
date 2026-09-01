@@ -17,6 +17,9 @@ outputs/
 *.mp3.tmp
 /tmp/
 
+# CloudBase 部署工具产物（每次 deploy 自动生成）
+cloudrun/cloudbaserc.json
+
 # 大文件：曲库不入库（可用 make_bgm_v2.py 重新生成）
 # assets/bgm/*.mp3
 

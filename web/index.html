@@ -2064,8 +2064,9 @@ function openDesignPanel() {
   DESIGN_SLIDERS.forEach(s => $("sl_" + s.key).oninput = refresh);
   refresh();
 
-  $("designGo").onclick = async () => {
-    const btn = $("designGo"), st = $("designStatus");
+  const btn = $("designGo"), st = $("designStatus");
+
+  const runDesign = async () => {
     btn.disabled = true;
     st.innerHTML = "正在创造声音…首次生成约需 20~40 秒";
     try {
@@ -2075,13 +2076,15 @@ function openDesignPanel() {
       });
       const obj = await res.json();
       if (!res.ok) throw new Error(obj.error || "HTTP " + res.status);
-      st.innerHTML = `<span style="color:#16a34a">生成成功！正在播放试听…</span>`;
+      st.innerHTML = obj.cached
+        ? `<span style="color:#15803d">命中历史音色，正在播放试听…（本次未产生设计费）</span>`
+        : `<span style="color:#15803d">生成成功！正在播放试听…</span>`;
       playPreview(obj.preview_base64);
       const designName = "设计音色 · " + new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
       saveCustomVoice({
         id: obj.voice_id,
         name: designName,
-        tag: "MiniMax 设计"
+        tag: obj.cached ? "设计音色 · 复用" : "MiniMax 设计"
       });
       narrator = obj.voice_id;
       renderVoices();
@@ -2091,6 +2094,20 @@ function openDesignPanel() {
       btn.disabled = false;
       st.innerHTML = `<div class="m-error">生成失败：${escapeHtml(e.message)}<br>请稍后重试；若持续失败请检查 MiniMax 服务余额。</div>`;
     }
+  };
+
+  btn.onclick = () => {
+    btn.disabled = true;
+    st.innerHTML = `<div style="padding:12px 14px;border-radius:8px;background:var(--paper-sunken);border:1px solid var(--line);font-size:0.85rem;line-height:1.7">
+      音色设计按次计费，本次将产生约 <b>¥21.6</b> 费用。
+      <div style="color:var(--ink-soft);font-size:0.8rem;margin-top:2px">相同描述会自动复用历史音色，不重复收费。</div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="m-btn ghost" id="designCancel" style="flex:1">取消</button>
+        <button class="m-btn primary" id="designConfirm" style="flex:1">确认生成</button>
+      </div>
+    </div>`;
+    $("designCancel").onclick = () => { btn.disabled = false; st.innerHTML = ""; };
+    $("designConfirm").onclick = runDesign;
   };
 }
 
