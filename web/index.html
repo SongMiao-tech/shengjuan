@@ -2011,9 +2011,13 @@ function openVoiceMenu() {
       </div>
     </div>
     <div class="m-actions"><button class="m-btn ghost" onclick="closeModal()">取消</button></div>`);
-  $("pathDesign").onclick = openDesignPanel;
+  $("pathDesign").style.display = DESIGN_CLOSED ? "none" : "";
+  if (!DESIGN_CLOSED) $("pathDesign").onclick = openDesignPanel;
   $("pathClone").onclick = openClonePanel;
 }
+
+/* 音色设计临时下线：MiniMax 通道停用，待配置 DASHSCOPE_API_KEY 走 CosyVoice 后恢复（后端 DESIGN_CLOSED 同步改） */
+const DESIGN_CLOSED = true;
 
 /* ── 路径一：创造 ───────────────── */
 const DESIGN_SLIDERS = [

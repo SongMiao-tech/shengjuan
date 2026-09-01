@@ -1241,9 +1241,15 @@ def voice_preview():
         return jsonify({"error": str(e)[:300]}), 502
 
 
+DESIGN_CLOSED = True   # 音色设计临时下线：MiniMax 通道停用，待配置 DASHSCOPE_API_KEY 走 CosyVoice 后恢复（前端 DESIGN_CLOSED 同步改）
+
+
 @APP.get("/voices/design/info")
 def voice_design_info():
     """设计通道与费用提示，供前端确认弹窗动态展示"""
+    if DESIGN_CLOSED:
+        return jsonify({"provider": "closed", "free": True,
+                        "fee_text": "音色设计升级维护中，敬请期待"})
     provider = design_provider()
     if provider == "cosyvoice":
         return jsonify({"provider": provider, "free": True,
@@ -1254,6 +1260,8 @@ def voice_design_info():
 
 @APP.post("/voices/design")
 def voice_design():
+    if DESIGN_CLOSED:
+        return jsonify({"error": "音色设计升级维护中，敬请期待"}), 503
     data = request.get_json(force=True, silent=True) or {}
     prompt = (data.get("prompt") or "").strip()
     if not prompt:
