@@ -389,9 +389,16 @@ def analyze(text: str):
 
 TRANS_PROMPT = """你是有声书中英双语译配师。把下面的中文段落数组逐段翻译成适合朗读的英文（简洁、口语化、保留原文语气）。
 输入是一个 JSON 字符串数组。只输出等长的 JSON 字符串数组（每元素为对应段落的英文翻译），不要任何解释、markdown 标记或其他文字。
+重要：JSON 字符串内部一律使用单引号 ' 表示对话引号，绝对不要输出未转义的双引号。
 段落数组：
 __TEXT__
 
+"""
+
+TRANS_ONE_PROMPT = """把下面的中文翻译成适合朗读的英文（简洁、口语化、保留原文语气）。
+只输出译文本身，不要任何解释或引号。对话引号一律用单引号 ' 。
+中文：
+__TEXT__
 """
 
 def split_chunks(text: str, limit: int = 1200) -> list:
@@ -447,24 +454,46 @@ def _batch_texts(texts: list) -> list:
     return batches
 
 def _translate_batch(texts: list) -> list:
-    """单批翻译：成功返回英文列表；任何失败返回 [None]*n（该批降级保留中文）"""
+    """单批翻译：成功返回英文列表；失败重试 1 次（间隔 3s，抗 GLM 免费档限流），
+    仍失败返回 [None]*n（该批降级保留中文）"""
     body = {"messages": [{"role": "user", "content": TRANS_PROMPT.replace("__TEXT__", json.dumps(texts, ensure_ascii=False))}],
             "temperature": 0.3}
+    for attempt in (1, 2):
+        try:
+            content = _glm_chat(body)
+        except Exception as e:  # noqa: BLE001
+            log(f"[translate] 批翻译失败（第 {attempt} 次尝试，全模型链），{len(texts)} 段: {str(e)[:100]}")
+        else:
+            m = _re.search(r"\[.*\]", content, _re.DOTALL)
+            if m:
+                try:
+                    en = json.loads(m.group(0))
+                except Exception:  # noqa: BLE001
+                    en = None
+                if isinstance(en, list) and len(en) == len(texts):
+                    return [str(x).strip() if x else None for x in en]
+            log(f"[translate] 批翻译响应解析失败（第 {attempt} 次尝试），{len(texts)} 段"
+                f"{'，转逐段翻译' if attempt == 2 else ''}")
+        if attempt == 1:
+            time.sleep(3)
+    # 批 JSON 两连败兜底：逐段纯文本翻译（不经 JSON，无转义问题，单段必成功）
+    log(f"[translate] 批 JSON 翻译失败，{len(texts)} 段转逐段纯文本翻译")
+    return [_translate_one(t) for t in texts]
+
+def _translate_one(text: str) -> str | None:
+    """单段纯文本翻译兜底：不经 JSON，避免引号转义炸解析；失败返回 None 降级中文"""
+    body = {"messages": [{"role": "user", "content": TRANS_ONE_PROMPT.replace("__TEXT__", text)}],
+            "temperature": 0.3}
     try:
-        content = _glm_chat(body)
+        content = _glm_chat(body).strip()
     except Exception as e:  # noqa: BLE001
-        log(f"[translate] 批翻译失败（全模型链），{len(texts)} 段降级保留中文: {str(e)[:100]}")
-        return [None] * len(texts)
-    m = _re.search(r"\[.*\]", content, _re.DOTALL)
-    if not m:
-        return [None] * len(texts)
-    try:
-        en = json.loads(m.group(0))
-    except Exception:  # noqa: BLE001
-        return [None] * len(texts)
-    if not isinstance(en, list) or len(en) != len(texts):
-        return [None] * len(texts)
-    return [str(x).strip() if x else None for x in en]
+        log(f"[translate] 单段翻译失败，该段降级保留中文: {str(e)[:100]}")
+        return None
+    # 去掉模型可能加的包裹引号/前缀
+    content = content.strip().strip('"').strip("'").strip()
+    if not content or len(content) > len(text) * 8 + 200:
+        return None
+    return content
 
 def translate_segments(segments: list) -> tuple:
     """GLM 分批翻译为英文（每批 <=4 段且 <=700 字）。
@@ -1056,10 +1085,12 @@ def synth_dispatch(text: str, speaker: str, out_path: Path, emotion=None, scale=
 
 # ---------- 音色接口 ----------
 PREVIEW_TEXT = "你好，我是你的朗读者，很高兴用声音为你讲述接下来的故事。"
+PREVIEW_TEXT_EN = "Hello, I am your narrator. It is a pleasure to read the next story for you."
 
 @APP.post("/voices/preview")
 def voice_preview():
-    """任意音色试听：固定文案合成一句，自动按音色类型分发厂商（可带方言）"""
+    """任意音色试听：固定文案合成一句，自动按音色类型分发厂商（可带方言）。
+    英文音色用英文文案（豆包英文音色遇纯中文输入会静默不合成）"""
     data = request.get_json(force=True, silent=True) or {}
     speaker = (data.get("speaker_id") or "").strip()
     dialect = (data.get("dialect") or "").strip() or None
@@ -1070,7 +1101,8 @@ def voice_preview():
     d.mkdir(parents=True, exist_ok=True)
     try:
         out = d / "preview.mp3"
-        synth_dispatch(PREVIEW_TEXT, speaker, out, dialect=dialect)
+        preview_text = PREVIEW_TEXT_EN if speaker.startswith("en_") else PREVIEW_TEXT
+        synth_dispatch(preview_text, speaker, out, dialect=dialect)
         return jsonify({"audio_base64": base64.b64encode(out.read_bytes()).decode("ascii")})
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)[:300]}), 502
