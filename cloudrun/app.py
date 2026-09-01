@@ -144,7 +144,12 @@ TASKS: dict = {}   # task_id -> {"status","stage","segments","audio_base64","dur
 
 
 def pick_resource(speaker: str) -> str:
-    return "seed-icl-2.0" if speaker.startswith(("S_", "custom")) else "seed-tts-2.0"
+    """按音色选 X-Api-Resource-Id（unidirectional V3 网关）：
+    - 声音复刻（S_/custom 开头）-> seed-icl-2.0
+    - 其余 -> seed-tts-2.0（可用 TTS_RESOURCE env 覆盖，排查账号 resource 授权用）"""
+    if speaker.startswith(("S_", "custom")):
+        return "seed-icl-2.0"
+    return os.environ.get("TTS_RESOURCE", "").strip() or "seed-tts-2.0"
 
 
 def log(msg: str) -> None:
