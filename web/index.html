@@ -558,21 +558,11 @@
 <div class="stage">
   <aside>
     <img class="deco deco-paper" src="deco/deco-paper.webp" alt="" aria-hidden="true">
-    <div class="field" id="myVoiceField" style="display:none;">
-      <div class="field-label">我的音色 <span id="myVoiceUser" style="font-weight:400;font-size:0.72rem;color:var(--ink-faint);"></span></div>
+    <div class="field" id="myVoiceField">
+      <div class="field-label">我的音色库 <span id="myVoiceUser" style="font-weight:400;font-size:0.72rem;color:var(--ink-faint);"></span></div>
       <div id="myVoiceBox">
-        <div class="field-note" id="myVoiceEmpty" style="display:none;">还没有绑定音色。在下方音色列表点「复制」，或克隆/创造一个新声音。</div>
-        <div class="voice-item my-voice-item" id="myVoiceItem" style="display:none;">
-          <div class="voice-info">
-            <div class="voice-name" id="myVoiceName"></div>
-            <div class="voice-tag" id="myVoiceTag"></div>
-          </div>
-          <div class="voice-actions">
-            <button class="voice-preview" id="myVoicePreviewBtn" title="试听">▶</button>
-            <button class="mv-btn" id="myVoiceUseBtn" title="设为旁白">用</button>
-            <button class="mv-btn voice-del" id="myVoiceDelBtn" title="删除">×</button>
-          </div>
-        </div>
+        <div class="field-note" id="myVoiceEmpty" style="display:none;">还没有收藏的音色。在下方音色列表点「⧉」收藏，或创造 / 克隆一个新声音。</div>
+        <div id="myVoiceList"></div>
       </div>
     </div>
     <div class="field">
@@ -758,7 +748,7 @@ const store = (() => {
 })();
 
 /* ───────── 用户系统（自建账号 + PG，走后端 API） ───────── */
-let userToken = null, userName = null, myVoice = null;
+let userToken = null, userName = null;
 
 /* 恢复登录态（IIFE 同步执行只做 DOM 渲染；涉及 API 常量的请求放到异步段） */
 (async function initAuth() {
@@ -769,14 +759,14 @@ let userToken = null, userName = null, myVoice = null;
     }
   } catch (e) {}
   renderUserArea();
-  if (userToken) await loadMyVoice();               // 微任务阶段执行，TDZ 已解除
+  await loadMyVoices();               // 登录拉云端音色库，未登录读本地缓存（微任务执行，TDZ 已解除）
 })();
 
 function saveAuth(token, name) {
   userToken = token; userName = name;
   store.setItem("sqAuth", JSON.stringify({ token, name }));
   renderUserArea();
-  loadMyVoice();
+  loadMyVoices();
 }
 
 function renderUserArea() {
@@ -784,18 +774,20 @@ function renderUserArea() {
   if (!userToken) {
     box.innerHTML = `<button class="user-btn" id="loginBtn">登录 / 注册</button>`;
     $("loginBtn").onclick = openAuthModal;
-    $("myVoiceField").style.display = "none";
+    $("myVoiceUser").textContent = "（未登录 · 仅本机）";
   } else {
     box.innerHTML = `<span class="user-name">👤 ${escapeHtml(userName)}</span><button class="user-btn ghost" id="logoutBtn">退出</button>`;
     $("logoutBtn").onclick = doLogout;
-    $("myVoiceField").style.display = "";
+    $("myVoiceUser").textContent = "";
   }
+  $("myVoiceField").style.display = "";   // 音色库登录/未登录都显示（未登录=仅本机）
 }
 
-function doLogout() {
-  userToken = null; userName = null; myVoice = null;
+async function doLogout() {
+  userToken = null; userName = null;
   store.removeItem("sqAuth");
   renderUserArea();
+  await loadMyVoices();                   // 回落到本机列表
 }
 
 /* ───────── 登录/注册弹窗 ───────── */
@@ -844,90 +836,243 @@ $("authGoBtn").onclick = async () => {
   }
 };
 
-/* ───────── 我的音色（每用户 1 条，覆盖式） ───────── */
+/* ───────── 我的音色库（登录=云端按账号同步；未登录=仅本机 sqVoices） ───────── */
 function meHeaders() {
   return { "Authorization": `Bearer ${userToken}`, "Content-Type": "application/json" };
 }
 
-async function loadMyVoice() {
-  if (!userToken) return;
-  try {
-    const r = await fetch(API + "/me/voice", { headers: meHeaders() });
-    if (r.status === 401) { doLogout(); return; }
-    const obj = await r.json();
-    myVoice = obj.voice || null;
-  } catch (e) { console.warn("[myVoice] load", e); }
-  renderMyVoice();
+let myVoices = [];   // [{voice_id, name, source, tag, dialect, created_at}]
+
+function localVoicesLoad() {
+  try { return JSON.parse(store.getItem("sqVoices") || "[]"); }
+  catch { return []; }
+}
+function localVoicesSave() {
+  /* 本地缓存与库同构（含登录态，断网/未登录时仍可显示） */
+  store.setItem("sqVoices", JSON.stringify(myVoices.slice(0, 20).map(v =>
+    ({ id: v.voice_id, name: v.name, tag: v.tag || v.source, source: v.source, dialect: v.dialect || null }))));
+}
+function normLibItems(rows) {
+  return (rows || []).map(r => ({
+    voice_id: r.voice_id || r.id, name: r.name, source: r.source || "design",
+    tag: r.tag || "", dialect: r.dialect || null, created_at: r.created_at || null
+  })).filter(v => v.voice_id && v.name);
 }
 
-function renderMyVoice() {
-  const empty = $("myVoiceEmpty"), item = $("myVoiceItem");
-  if (!myVoice) {
-    empty.style.display = ""; item.style.display = "none";
-    return;
-  }
-  empty.style.display = "none"; item.style.display = "";
-  const srcTag = { clone: "声音复刻", design: "AI 设计", preset: "复制自音色库" }[myVoice.source] || myVoice.source;
-  $("myVoiceName").textContent = myVoice.name;
-  $("myVoiceTag").textContent = `${srcTag} · ${myVoice.speaker_id.slice(0, 24)}`;
+/* 名称校验：合法性 + 库内唯一（trim、忽略大小写）；excludeVoiceId 用于重命名/覆盖自身 */
+function checkVoiceName(name, excludeVoiceId) {
+  name = (name || "").trim();
+  if (!name) return "音色名称不能为空";
+  if (name.length > 16) return "音色名称最多 16 个字符";
+  if (!/^[\w\u4e00-\u9fa5\u00b7\- ]{1,16}$/.test(name)) return "名称仅限中英文、数字、空格及 · - _";
+  const key = name.toLowerCase();
+  const dup = myVoices.find(v => v.voice_id !== excludeVoiceId && v.name.trim().toLowerCase() === key);
+  if (dup) return `已有同名音色「${dup.name}」，请换一个名字`;
+  return null;
 }
 
-async function copyToMyVoice(v) {
-  if (!userToken) { openAuthModal(); return; }
-  try {
-    const r = await fetch(API + "/me/voice", {
-      method: "PUT", headers: meHeaders(),
-      body: JSON.stringify({
-        speaker_id: v.speaker_id || v.id, name: v.name,
-        source: v.source || "preset", dialect: v.dialect || null
-      })
-    });
-    const obj = await r.json();
-    if (!r.ok) throw new Error(obj.error || "HTTP " + r.status);
-    myVoice = { speaker_id: v.speaker_id || v.id, name: v.name,
-                source: v.source || "preset", dialect: v.dialect || null };
-    renderMyVoice();
-    renderVoices();
-  } catch (e) {
-    showError("复制失败：" + String(e.message || e).slice(0, 120));
-  }
-}
-
-$("myVoiceDelBtn").onclick = async () => {
-  if (!confirm("确定删除「我的音色」？删除后需重新复制。")) return;
-  try {
-    const removed = myVoice;                     // 记下删的是什么
-    await fetch(API + "/me/voice", { method: "DELETE", headers: meHeaders() });
-    if (removed && (removed.source === "clone" || removed.source === "design")) {
-      // 克隆/设计产物同步从音色列表和本地记录移除
-      const sid = removed.speaker_id;
-      store.setItem("sqVoices", JSON.stringify(loadCustomVoices().filter(x => x.id !== sid)));
-      VOICES = VOICES.filter(x => x.id !== sid);
-      if (narrator === sid) narrator = BASE_VOICES[0].id;
+async function loadMyVoices() {
+  await 0;   // 让主脚本先初始化 VOICES，避免 TDZ（syncVoicesIntoList 会写 VOICES）
+  if (userToken) {
+    try {
+      const r = await fetch(API + "/me/voices", { headers: meHeaders() });
+      if (r.status === 401) { await doLogout(); return; }
+      const obj = await r.json();
+      myVoices = r.ok ? normLibItems(obj.voices) : normLibItems(localVoicesLoad());
+      localVoicesSave();          // 云端列表落本地缓存
+    } catch (e) {
+      console.warn("[myVoices] load", e);
+      myVoices = normLibItems(localVoicesLoad());
     }
-    myVoice = null; renderMyVoice(); renderVoices();
-  } catch (e) { showError("删除失败：" + String(e.message || e).slice(0, 120)); }
-};
-$("myVoiceUseBtn").onclick = () => {
-  if (!myVoice) return;
-  narrator = myVoice.dialect ? `${myVoice.speaker_id}@@${myVoice.dialect}` : myVoice.speaker_id;
+  } else {
+    myVoices = normLibItems(localVoicesLoad());
+  }
+  syncVoicesIntoList();
+  renderMyVoices();
   renderVoices();
-};
-$("myVoicePreviewBtn").onclick = async () => {
-  if (!myVoice) return;
-  const btn = $("myVoicePreviewBtn");
+}
+
+/* 库条目并入音色选择列表（同 voice_id 就地更新名称/tag，新条目插到最前） */
+function syncVoicesIntoList() {
+  myVoices.forEach(v => {
+    const item = { id: v.voice_id, name: v.name, tag: v.tag || "我的音色",
+                   speaker_id: v.voice_id, source: v.source };
+    if (v.dialect) item.dialect = v.dialect;
+    const i = VOICES.findIndex(x => x.id === item.id);
+    if (i >= 0) VOICES[i] = Object.assign(VOICES[i], { name: item.name, tag: item.tag });
+    else VOICES.unshift(item);
+  });
+}
+
+function isMyVoice(speakerId) {
+  return myVoices.some(v => v.voice_id === speakerId);
+}
+
+function renderMyVoices() {
+  const empty = $("myVoiceEmpty"), list = $("myVoiceList");
+  if (!myVoices.length) { empty.style.display = ""; list.innerHTML = ""; return; }
+  empty.style.display = "none";
+  list.innerHTML = myVoices.map(v => {
+    const srcTag = { clone: "声音复刻", design: "AI 设计", smart: "智能生成", preset: "收藏" }[v.source] || v.source;
+    return `<div class="voice-item my-voice-item">
+      <div class="voice-info">
+        <div class="voice-name">${escapeHtml(v.name)}</div>
+        <div class="voice-tag">${srcTag}${v.tag && v.tag !== srcTag ? " · " + escapeHtml(v.tag) : ""}</div>
+      </div>
+      <div class="voice-actions">
+        <button class="voice-preview" data-lib-pv="${v.voice_id}" title="试听">▶</button>
+        <button class="mv-btn" data-lib-use="${v.voice_id}" title="设为旁白">用</button>
+        <button class="mv-btn" data-lib-rn="${v.voice_id}" title="重命名">✎</button>
+        <button class="mv-btn voice-del" data-lib-del="${v.voice_id}" title="删除">×</button>
+      </div>
+    </div>`;
+  }).join("");
+  list.querySelectorAll("[data-lib-pv]").forEach(b => b.onclick = () => previewLibraryVoice(b.dataset.libPv, b));
+  list.querySelectorAll("[data-lib-use]").forEach(b => b.onclick = () => {
+    const v = myVoices.find(x => x.voice_id === b.dataset.libUse);
+    if (!v) return;
+    narrator = v.dialect ? `${v.voice_id}@@${v.dialect}` : v.voice_id;
+    renderVoices();
+  });
+  list.querySelectorAll("[data-lib-rn]").forEach(b => b.onclick = () => {
+    const v = myVoices.find(x => x.voice_id === b.dataset.libRn);
+    if (v) openRenameModal(v);
+  });
+  list.querySelectorAll("[data-lib-del]").forEach(b => b.onclick = async () => {
+    const v = myVoices.find(x => x.voice_id === b.dataset.libDel);
+    if (!v || !confirm(`确定删除音色「${v.name}」？${userToken ? "删除后各设备同步移除。" : ""}`)) return;
+    try {
+      if (userToken) {
+        const r = await fetch(API + "/me/voices/" + encodeURIComponent(v.voice_id),
+                              { method: "DELETE", headers: meHeaders() });
+        if (r.status === 401) { await doLogout(); return; }
+        const obj = await r.json();
+        if (!r.ok) throw new Error(obj.error || "HTTP " + r.status);
+        myVoices = normLibItems(obj.voices);
+        localVoicesSave();
+      } else {
+        myVoices = myVoices.filter(x => x.voice_id !== v.voice_id);
+        localVoicesSave();
+      }
+      if (narrator === v.voice_id) narrator = BASE_VOICES[0].id;
+      syncVoicesIntoList();
+      renderMyVoices();
+      renderVoices();
+    } catch (e) { showError("删除失败：" + String(e.message || e).slice(0, 120)); }
+  });
+}
+
+async function previewLibraryVoice(voiceId, btn) {
+  const v = myVoices.find(x => x.voice_id === voiceId);
+  if (!v) return;
   btn.disabled = true; btn.textContent = "…";
   try {
     const res = await fetch(API + "/voices/preview", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ speaker_id: myVoice.speaker_id, dialect: myVoice.dialect || null })
+      body: JSON.stringify({ speaker_id: v.voice_id, dialect: v.dialect || null })
     });
     const obj = await res.json();
     if (!res.ok) throw new Error(obj.error || "HTTP " + res.status);
     new Audio("data:audio/mp3;base64," + obj.audio_base64).play();
   } catch (e) { showError("试听失败：" + String(e.message || e).slice(0, 100)); }
   btn.disabled = false; btn.textContent = "▶";
-};
+}
+
+/* 统一入库：登录走云端（后端权威校验唯一性/上限），未登录本地（前端校验）。
+   item={speaker_id, source, tag, dialect}；同名同 voice_id 视为覆盖更新 */
+async function saveToLibrary(item, name) {
+  name = (name || "").trim();
+  const err = checkVoiceName(name, item.speaker_id);
+  if (err) throw new Error(err);
+  const rec = { voice_id: item.speaker_id, name,
+                source: item.source || "design", tag: item.tag || "", dialect: item.dialect || null };
+  if (userToken) {
+    const r = await fetch(API + "/me/voices", {
+      method: "POST", headers: meHeaders(), body: JSON.stringify(rec) });
+    if (r.status === 401) { await doLogout(); throw new Error("登录已过期，请重新登录后再保存"); }
+    const obj = await r.json();
+    if (!r.ok) throw new Error(obj.error || "HTTP " + r.status);
+    myVoices = normLibItems(obj.voices);
+    localVoicesSave();
+  } else {
+    myVoices = [{ ...rec, created_at: new Date().toISOString() },
+                ...myVoices.filter(x => x.voice_id !== rec.voice_id)].slice(0, 20);
+    localVoicesSave();
+  }
+  syncVoicesIntoList();
+  renderMyVoices();
+  renderVoices();
+}
+
+/* 命名入库弹窗（音色列表「⧉」收藏 / 设计与智能生成共用） */
+function openNameForSave(item, defName) {
+  openModal(`
+    <div class="modal-title">保存到我的音色库</div>
+    <div class="modal-sub">为这个声音起个名字（16 字以内，不与库内其他音色重名）。${userToken ? "保存后各设备自动同步。" : "当前未登录，将仅保存在本机。"}</div>
+    <input class="name-input" id="saveNameInput" maxlength="16" value="${escapeHtml(defName || "")}" spellcheck="false">
+    <div class="rec-status" id="saveNameStatus"></div>
+    <div class="m-actions">
+      <button class="m-btn ghost" onclick="closeModal()">取消</button>
+      <button class="m-btn primary" id="saveNameGo">保存</button>
+    </div>`);
+  $("saveNameInput").focus();
+  $("saveNameGo").onclick = async () => {
+    const go = $("saveNameGo"), st = $("saveNameStatus");
+    const name = $("saveNameInput").value.trim();
+    const err = checkVoiceName(name, item.speaker_id);
+    if (err) { st.innerHTML = `<div class="m-error">${escapeHtml(err)}</div>`; return; }
+    go.disabled = true; st.textContent = "保存中…";
+    try {
+      await saveToLibrary(item, name);
+      closeModal();
+    } catch (e) {
+      go.disabled = false;
+      st.innerHTML = `<div class="m-error">${escapeHtml(String(e.message || e).slice(0, 120))}</div>`;
+    }
+  };
+}
+
+/* 重命名弹窗（音色库行内「✎」） */
+function openRenameModal(item) {
+  openModal(`
+    <div class="modal-title">重命名音色</div>
+    <div class="modal-sub">为「${escapeHtml(item.name)}」起一个新名字（16 字以内，同一音色库内不重名）。</div>
+    <input class="name-input" id="rnInput" maxlength="16" value="${escapeHtml(item.name)}" spellcheck="false">
+    <div class="rec-status" id="rnStatus"></div>
+    <div class="m-actions">
+      <button class="m-btn ghost" onclick="closeModal()">取消</button>
+      <button class="m-btn primary" id="rnGo">保存</button>
+    </div>`);
+  $("rnInput").focus();
+  $("rnGo").onclick = async () => {
+    const go = $("rnGo"), st = $("rnStatus");
+    const name = $("rnInput").value.trim();
+    const err = checkVoiceName(name, item.voice_id);
+    if (err) { st.innerHTML = `<div class="m-error">${escapeHtml(err)}</div>`; return; }
+    go.disabled = true; st.textContent = "保存中…";
+    try {
+      if (userToken) {
+        const r = await fetch(API + "/me/voices/" + encodeURIComponent(item.voice_id), {
+          method: "PATCH", headers: meHeaders(), body: JSON.stringify({ name }) });
+        if (r.status === 401) { await doLogout(); throw new Error("登录已过期"); }
+        const obj = await r.json();
+        if (!r.ok) throw new Error(obj.error || "HTTP " + r.status);
+        myVoices = normLibItems(obj.voices);
+        localVoicesSave();
+      } else {
+        item.name = name;
+        localVoicesSave();
+      }
+      syncVoicesIntoList();
+      renderMyVoices();
+      renderVoices();
+      closeModal();
+    } catch (e) {
+      go.disabled = false;
+      st.innerHTML = `<div class="m-error">${escapeHtml(String(e.message || e).slice(0, 120))}</div>`;
+    }
+  };
+}
 
 
 /* ───────── 数据 ───────── */
@@ -939,19 +1084,14 @@ const BASE_VOICES = [
 const MY_CLONE_ID = "S_7PtM1phd2";
 const CLONE_TEXT = "床前明月光，疑是地上霜。举头望明月，低头思故乡。";
 
-/* 自定义音色持久化（创造/复制的产物） */
-function loadCustomVoices() {
-  try { return JSON.parse(store.getItem("sqVoices") || "[]"); }
-  catch { return []; }
-}
-function saveCustomVoice(v) {
-  const list = loadCustomVoices().filter(x => x.id !== v.id);
-  list.unshift(v);
-  store.setItem("sqVoices", JSON.stringify(list.slice(0, 20)));
-  if (!VOICES.some(x => x.id === v.id)) VOICES.unshift(v);   // 克隆/设计产物立即进列表
-}
+/* 音色选择列表：本地缓存快照先行渲染，loadMyVoices 随后以音色库为准同步名称/tag */
 let VOICES = [
-  ...loadCustomVoices(),   // 含克隆产物「我的声音」——克隆过才会出现在列表里
+  ...normLibItems(localVoicesLoad()).map(v => {
+    const item = { id: v.voice_id, name: v.name, tag: v.tag || "我的音色",
+                   speaker_id: v.voice_id, source: v.source };
+    if (v.dialect) item.dialect = v.dialect;
+    return item;
+  }),   // 含克隆产物「我的声音」——克隆过才会出现在列表里
   ...BASE_VOICES,
   { id: "__custom__", name: "自定义音色", tag: "创造 / 复制 →" },
 ];
@@ -1071,10 +1211,10 @@ let dialectOpen = false;   // 方言分组折叠状态
 function renderVoices() {
   const copyBtn = v => {
     if (v.id === "__custom__") return "";
-    const src = { clone: "clone", design: "design", preset: "preset" }[v.source] || "preset";
-    const isMine = myVoice && myVoice.speaker_id === (v.speaker_id || v.id);
+    const src = { clone: "clone", design: "design", smart: "smart", preset: "preset" }[v.source] || "preset";
+    const isMine = isMyVoice(v.speaker_id || v.id);
     return `<button class="voice-copy-btn${isMine ? " mine" : ""}" data-cp="${v.id}"
-      data-src="${src}" data-dialect="${v.dialect || ""}" title="${isMine ? "已在我的音色" : "复制到我的音色"}">${isMine ? "✓" : "⧉"}</button>`;
+      data-src="${src}" data-dialect="${v.dialect || ""}" title="${isMine ? "已在我的音色库" : "收藏到我的音色库"}">${isMine ? "✓" : "⧉"}</button>`;
   };
   const mainList = VOICES.map(v => `
     <div class="voice-option${v.id === narrator ? " active" : ""}" data-id="${v.id}">
@@ -1114,13 +1254,15 @@ function renderVoices() {
       const id = btn.dataset.cp;
       const v = [...VOICES, ...DIALECT_VOICES].find(x => x.id === id);
       if (!v) return;
-      copyToMyVoice({
-        id: v.id,
-        speaker_id: v.speaker_id || v.id,
-        name: v.name,
+      const sid = v.speaker_id || v.id;
+      if (isMyVoice(sid)) return;                 // 已收藏
+      /* 收藏一律走命名入库（16 字内、库内唯一） */
+      openNameForSave({
+        speaker_id: sid,
         source: btn.dataset.src || "preset",
+        tag: v.tag || "",
         dialect: btn.dataset.dialect || null
-      });
+      }, v.name);
     };
   });
 }
@@ -2001,6 +2143,10 @@ function openVoiceMenu() {
     <div class="modal-title">自定义音色</div>
     <div class="modal-sub">选择一种方式获得属于你的声音。</div>
     <div class="path-grid">
+      <div class="path-card" id="pathSmart" style="grid-column:1 / -1;">
+        <div class="path-name">智能生成</div>
+        <div class="path-desc">用一句话描述想要的声音，AI 自动推导完整音色设定并生成，试听满意再保存。</div>
+      </div>
       <div class="path-card" id="pathDesign">
         <div class="path-name">创造新声音</div>
         <div class="path-desc">调节性别、年龄、音质等参数，从零设计一个独一无二的声音。</div>
@@ -2011,8 +2157,12 @@ function openVoiceMenu() {
       </div>
     </div>
     <div class="m-actions"><button class="m-btn ghost" onclick="closeModal()">取消</button></div>`);
+  $("pathSmart").style.display = DESIGN_CLOSED ? "none" : "";
   $("pathDesign").style.display = DESIGN_CLOSED ? "none" : "";
-  if (!DESIGN_CLOSED) $("pathDesign").onclick = openDesignPanel;
+  if (!DESIGN_CLOSED) {
+    $("pathSmart").onclick = openSmartPanel;
+    $("pathDesign").onclick = openDesignPanel;
+  }
   $("pathClone").onclick = openClonePanel;
 }
 
@@ -2082,20 +2232,42 @@ function openDesignPanel() {
       });
       const obj = await res.json();
       if (!res.ok) throw new Error(obj.error || "HTTP " + res.status);
-      st.innerHTML = obj.cached
-        ? `<span style="color:#15803d">命中历史音色，正在播放试听…（本次未产生设计费）</span>`
-        : `<span style="color:#15803d">生成成功！正在播放试听…</span>`;
-      playPreview(obj.preview_base64);
-      const designName = "设计音色 · " + new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
-      saveCustomVoice({
-        id: obj.voice_id,
-        name: designName,
-        tag: obj.cached ? "设计音色 · 复用" : (obj.provider === "cosyvoice" ? "CosyVoice 设计" : "MiniMax 设计")
-      });
-      narrator = obj.voice_id;
-      renderVoices();
-      copyToMyVoice({ speaker_id: obj.voice_id, name: designName, source: "design" });
-      setTimeout(() => { closeModal(); }, 1600);
+      if (obj.preview_base64) {
+        st.innerHTML = obj.cached
+          ? `<span style="color:#15803d">命中历史音色，正在播放试听…（本次未产生设计费）</span>`
+          : `<span style="color:#15803d">生成成功！正在播放试听…</span>`;
+        playPreview(obj.preview_base64);
+      } else {
+        /* 服务端降级：设计已成功但试听合成失败（如服务余额波动），不丢音色 */
+        st.innerHTML = `<span style="color:#b45309">音色已生成，但试听暂不可用（服务波动），可直接命名保存，稍后可在音色库试听。</span>`;
+      }
+      const tag = obj.cached ? "设计音色 · 复用" : (obj.provider === "cosyvoice" ? "CosyVoice 设计" : "MiniMax 设计");
+      st.insertAdjacentHTML("afterend", `
+        <div id="designSaveBox">
+          <div style="font-size:0.82rem;color:var(--ink-soft);margin:10px 0 6px;">为这个声音起个名字并保存（${userToken ? "保存后各设备同步" : "未登录，将仅保存在本机"}）：</div>
+          <input class="name-input" id="designName" maxlength="16" value="设计音色 ${new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}" spellcheck="false">
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="m-btn primary" id="designSave" style="flex:1">保存到我的音色库</button>
+          </div>
+          <div class="rec-status" id="designSaveStatus"></div>
+        </div>`);
+      $("designSave").onclick = async () => {
+        const sv = $("designSave"), sst = $("designSaveStatus");
+        const name = $("designName").value.trim();
+        const err = checkVoiceName(name, obj.voice_id);
+        if (err) { sst.innerHTML = `<div class="m-error">${escapeHtml(err)}</div>`; return; }
+        sv.disabled = true; sst.textContent = "保存中…";
+        try {
+          await saveToLibrary({ speaker_id: obj.voice_id, source: "design", tag }, name);
+          narrator = obj.voice_id;
+          renderVoices();
+          sst.innerHTML = `<span style="color:#15803d">已保存「${escapeHtml(name)}」，可直接生成。</span>`;
+          setTimeout(closeModal, 1400);
+        } catch (e) {
+          sv.disabled = false;
+          sst.innerHTML = `<div class="m-error">${escapeHtml(String(e.message || e).slice(0, 120))}</div>`;
+        }
+      };
     } catch (e) {
       btn.disabled = false;
       st.innerHTML = `<div class="m-error">生成失败：${escapeHtml(e.message)}<br>请稍后重试；若持续失败请检查音色服务配置与余额。</div>`;
@@ -2120,9 +2292,120 @@ function openDesignPanel() {
 }
 
 function playPreview(b64) {
+  if (!b64) return; /* 服务端降级：设计成功但试听合成失败时为空，直接跳过播放 */
   const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
   new Audio(URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }))).play()
     .catch(() => {});
+}
+
+/* ── 路径三：智能生成（一句话描述 → AI 推导音色设定 → 试听 → 命名保存） ───────────── */
+const SMART_EXAMPLES = [
+  "温柔的年轻女声，像睡前讲故事的姐姐，语速慢，让人安心",
+  "沉稳的中年男声，像历史纪录片解说，低沉有磁性",
+  "活泼的童声小男孩，元气满满，适合讲冒险故事",
+  "慈祥的老奶奶声音，慢悠悠的，带着笑意",
+];
+
+function openSmartPanel() {
+  openModal(`
+    <div class="modal-title">智能生成音色</div>
+    <div class="modal-sub">用一句话描述你想要的声音，AI 会推导出完整的声音设定并生成音色，试听满意后再保存。</div>
+    <textarea id="smartIdea" class="custom-input" rows="3" maxlength="300" spellcheck="false"
+      placeholder="例如：想要一个温柔的年轻女声，像睡前故事的姐姐，语速慢一点，声音软软的" style="margin-top:0;"></textarea>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;" id="smartExamples">
+      ${SMART_EXAMPLES.map(t => `<button class="style-chip" data-idea="${escapeHtml(t)}" style="font-size:.72rem;" title="${escapeHtml(t)}">${escapeHtml(t.slice(0, 8))}…</button>`).join("")}
+    </div>
+    <div id="smartDetail" style="display:none;"></div>
+    <div class="rec-status" id="smartStatus"></div>
+    <div class="m-actions">
+      <button class="m-btn ghost" onclick="closeModal()">取消</button>
+      <button class="m-btn primary" id="smartGo">生成并试听</button>
+    </div>`);
+
+  const btn = $("smartGo"), st = $("smartStatus");
+  /* 设计通道信息（费用提示用）：面板打开时即取，点确认时基本已返回 */
+  const designInfoP = fetch(API + "/voices/design/info").then(r => r.json()).catch(() => null);
+
+  $("smartExamples").querySelectorAll("[data-idea]").forEach(b => {
+    b.onclick = () => { $("smartIdea").value = b.dataset.idea; $("smartIdea").focus(); };
+  });
+
+  const runSmart = async () => {
+    const idea = $("smartIdea").value.trim();
+    btn.disabled = true;
+    st.innerHTML = "AI 正在推导声音设定…约需 20~40 秒";
+    $("smartDetail").style.display = "none";
+    try {
+      const res = await fetch(API + "/voices/smart_design", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idea })
+      });
+      const obj = await res.json();
+      if (!res.ok) throw new Error(obj.error || "HTTP " + res.status);
+      /* AI 推导的音色设定回显 + 命名入库（预填 AI 建议名） */
+      const box = $("smartDetail");
+      box.style.display = "";
+      box.innerHTML = `
+        <div class="prompt-preview" style="margin-top:10px;">
+          <div style="font-size:.72rem;color:var(--ink-faint);margin-bottom:4px;">AI 推导的音色设定${obj.cached ? "（命中历史音色）" : ""}：</div>
+          ${escapeHtml(obj.voice_prompt || "")}
+        </div>
+        <div style="font-size:0.82rem;color:var(--ink-soft);margin:10px 0 6px;">试听满意吗？起个名字保存（${userToken ? "保存后各设备同步" : "未登录，将仅保存在本机"}）：</div>
+        <input class="name-input" id="smartName" maxlength="16" value="${escapeHtml(obj.name_suggestion || "")}" placeholder="给这个声音起个名字" spellcheck="false">
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="m-btn primary" id="smartSave" style="flex:1">保存到我的音色库</button>
+        </div>
+        <div class="rec-status" id="smartSaveStatus"></div>`;
+      if (obj.preview_base64) {
+        playPreview(obj.preview_base64);
+        st.innerHTML = obj.cached
+          ? `<span style="color:#15803d">命中历史音色，正在播放试听…（本次未产生设计费）</span>`
+          : `<span style="color:#15803d">生成成功！正在播放试听…</span>`;
+      } else {
+        /* 服务端降级：设计已成功但试听合成失败（如服务余额波动），不丢音色 */
+        st.innerHTML = `<span style="color:#b45309">音色已生成，但试听暂不可用（服务波动），可直接命名保存，稍后可在音色库试听。</span>`;
+      }
+      $("smartSave").onclick = async () => {
+        const sv = $("smartSave"), sst = $("smartSaveStatus");
+        const name = $("smartName").value.trim();
+        const err = checkVoiceName(name, obj.voice_id);
+        if (err) { sst.innerHTML = `<div class="m-error">${escapeHtml(err)}</div>`; return; }
+        sv.disabled = true; sst.textContent = "保存中…";
+        try {
+          await saveToLibrary({ speaker_id: obj.voice_id, source: "smart", tag: "智能生成" }, name);
+          narrator = obj.voice_id;
+          renderVoices();
+          sst.innerHTML = `<span style="color:#15803d">已保存「${escapeHtml(name)}」，可直接生成。</span>`;
+          setTimeout(closeModal, 1400);
+        } catch (e) {
+          sv.disabled = false;
+          sst.innerHTML = `<div class="m-error">${escapeHtml(String(e.message || e).slice(0, 120))}</div>`;
+        }
+      };
+      btn.disabled = false;
+      btn.textContent = "换个描述再来一次";
+    } catch (e) {
+      btn.disabled = false;
+      st.innerHTML = `<div class="m-error">生成失败：${escapeHtml(e.message)}<br>请稍后重试；若持续失败请检查音色服务配置与余额。</div>`;
+    }
+  };
+
+  btn.onclick = async () => {
+    if (!$("smartIdea").value.trim()) { st.innerHTML = `<div class="m-error">先写一句你想要的声音描述吧。</div>`; return; }
+    btn.disabled = true;
+    const info = await designInfoP;
+    const feeText = (info && info.fee_text) || "音色设计按次计费，本次将产生约 <b>¥21.6</b> 费用。";
+    st.innerHTML = `<div style="padding:12px 14px;border-radius:8px;background:var(--paper-sunken);border:1px solid var(--line);font-size:0.85rem;line-height:1.7">
+      ${feeText}
+      <div style="color:var(--ink-soft);font-size:0.8rem;margin-top:2px">相同设定会自动复用历史音色，不重复收费。</div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="m-btn ghost" id="smartCancel" style="flex:1">取消</button>
+        <button class="m-btn primary" id="smartConfirm" style="flex:1">确认生成</button>
+      </div>
+    </div>`;
+    $("smartCancel").onclick = () => { btn.disabled = false; st.innerHTML = ""; };
+    $("smartConfirm").onclick = runSmart;
+  };
 }
 
 /* ── 路径二：复制（录音克隆） ───────────── */
@@ -2236,16 +2519,18 @@ function onRecordStop() {
       });
       const obj = await res.json();
       if (!res.ok) throw new Error(obj.error || "HTTP " + res.status);
-      saveCustomVoice({ id: MY_CLONE_ID, name, tag: "声音复刻 · 刚录制" });
+      await saveToLibrary({ speaker_id: MY_CLONE_ID, source: "clone", tag: "声音复刻" }, name);
       narrator = MY_CLONE_ID;
       renderVoices();
-      copyToMyVoice({ speaker_id: MY_CLONE_ID, name, source: "clone" });
-      prog.innerHTML = `<div class="m-success">克隆成功！「${escapeHtml(name)}」已加入左侧音色列表，可以直接生成了。</div>`;
+      prog.innerHTML = `<div class="m-success">克隆成功！「${escapeHtml(name)}」已加入我的音色库，可以直接生成了。</div>`;
       setTimeout(closeModal, 2200);
     } catch (e) {
       go.disabled = false;
       go.textContent = "确认并克隆";
-      prog.innerHTML = `<div class="m-error">克隆失败：${escapeHtml(e.message)}<br>常见原因：录音噪音过大、与提示文本不符。可点「重新录音」再试一次。</div>`;
+      const hint = String(e.message || e).includes("同名")
+        ? `<div class="m-error">${escapeHtml(String(e.message || e).slice(0, 140))}</div>`
+        : `<div class="m-error">克隆失败：${escapeHtml(e.message)}<br>常见原因：录音噪音过大、与提示文本不符。可点「重新录音」再试一次。</div>`;
+      prog.innerHTML = hint;
     }
   };
 }

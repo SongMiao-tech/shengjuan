@@ -632,7 +632,8 @@ def cosy_design(prompt: str, preview_text: str):
     if not voice_id:
         raise RuntimeError("CosyVoice 设计接口未返回 voice_id")
     bump("designs")
-    # 新音色可能仍在部署（DEPLOYING），预览统一走合成拿 mp3，失败重试一次
+    # 新音色可能仍在部署（DEPLOYING），预览统一走合成拿 mp3，失败重试一次；
+    # 仍失败不再抛——设计已成功，试听失败不应丢音色（voice_id 已存在，稍后可在库中试听）
     preview_b64 = None
     for attempt in range(2):
         try:
@@ -643,7 +644,9 @@ def cosy_design(prompt: str, preview_text: str):
                 log(f"[cosy-design] 预览合成失败（音色可能部署中），4 秒后重试: {e}")
                 time.sleep(4)
             else:
-                raise
+                global _last_preview_err
+                _last_preview_err = str(e)
+                log(f"[cosy-design] 预览合成二次失败，降级返回 voice_id 无试听: {e}")
     return voice_id, preview_b64
 
 
@@ -1258,14 +1261,15 @@ def voice_design_info():
                     "fee_text": "音色设计按次计费，本次将产生约 <b>¥21.6</b> 费用。"})
 
 
-@APP.post("/voices/design")
-def voice_design():
-    if DESIGN_CLOSED:
-        return jsonify({"error": "音色设计升级维护中，敬请期待"}), 503
-    data = request.get_json(force=True, silent=True) or {}
-    prompt = (data.get("prompt") or "").strip()
-    if not prompt:
-        return jsonify({"error": "prompt required"}), 400
+_last_preview_err = ""  # 最近一次试听合成失败的错误摘要（降级时拼进 note）
+
+
+def _design_core(prompt: str) -> dict:
+    """音色设计核心流程（缓存 → 真设计），/voices/design 与 /voices/smart_design 共用。
+    成功返回 {voice_id, preview_base64, cached, provider, note}；失败抛异常（调用方转 502）。
+    预览合成失败不视为整体失败：返回 preview_base64=None，音色本身仍可用（库中稍后试听）"""
+    global _last_preview_err
+    _last_preview_err = ""
     preview = "你好，我是由声卷为你量身定制的声音，很高兴认识你，希望你喜欢我讲的故事。"
     provider = design_provider()
     ckey = design_cache_key(prompt)
@@ -1275,11 +1279,11 @@ def voice_design():
         try:
             preview_b64 = base64.b64encode(custom_tts_bytes(preview, cached_id)).decode("ascii")
         except Exception as e:  # noqa: BLE001
-            return jsonify({"error": str(e)[:300]}), 502
-        return jsonify({"voice_id": cached_id, "preview_base64": preview_b64,
-                        "cached": True, "provider": provider,
-                        "note": "已复用相同描述的历史音色，本次不产生设计费"})
-    try:
+            log(f"[design] 缓存音色试听合成失败，降级返回无试听: {e}")
+            preview_b64 = None
+            _last_preview_err = str(e)
+        note = "已复用相同描述的历史音色，本次不产生设计费"
+    else:
         if provider == "cosyvoice":
             voice_id, preview_b64 = cosy_design(prompt, preview)
             note = "CosyVoice 通道：音色设计免费，相同描述后续自动复用"
@@ -1287,8 +1291,83 @@ def voice_design():
             voice_id, preview_b64 = minimax_design(prompt, preview)
             note = "设计费已在本次试听合成时收取（约 ¥21.6），相同描述后续将自动复用"
         design_cache_put(ckey, prompt, voice_id, provider)
-        return jsonify({"voice_id": voice_id, "preview_base64": preview_b64,
-                        "cached": False, "provider": provider, "note": note})
+    if preview_b64 is None:
+        note += f"｜试听暂不可用（{_last_preview_err[:80] if _last_preview_err else '服务波动'}），可直接命名保存，稍后可在音色库试听"
+    return {"voice_id": voice_id, "preview_base64": preview_b64,
+            "cached": bool(cached_id), "provider": provider, "note": note}
+
+
+@APP.post("/voices/design")
+def voice_design():
+    if DESIGN_CLOSED:
+        return jsonify({"error": "音色设计升级维护中，敬请期待"}), 503
+    data = request.get_json(force=True, silent=True) or {}
+    prompt = (data.get("prompt") or "").strip()
+    if not prompt:
+        return jsonify({"error": "prompt required"}), 400
+    try:
+        return jsonify(_design_core(prompt))
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:300]}), 502
+
+
+# ---------- 智能生成音色：一句话描述 -> GLM 推导完整声音设定 -> 走设计核心 ----------
+SMART_PROMPT = """你是专业配音导演。用户想为有声书 App 创造一个朗读音色，给出了模糊的想法。
+请把想法扩写成一段可直接用于 CosyVoice 声音设计的专业音色描述，并起一个好听的音色名。
+要求：
+- voice_prompt：一段中文描述（60~200字），必须覆盖：性别与年龄段、音质与音色质感、语速与节奏、情感基调、适合朗读的故事类型。语句通顺自然，不要出现任何引号（中英文都不行），不要换行，不要列举式罗列。
+- name_suggestion：4到8个字的音色名（例如：晚风姐姐、沉石先生、云朵妈妈），不要出现引号和标点。
+只输出 JSON 对象，格式：{"voice_prompt": "...", "name_suggestion": "..."}，不要任何解释、markdown 代码块标记或其他文字。字符串内容中绝对不要出现双引号。
+用户的想法：__IDEA__"""
+
+_QUOTE_STRIP_RE = re.compile(r'["“”‘’「」『』\n\r]')
+
+
+def _strip_quotes(s: str) -> str:
+    """GLM 在 JSON 字符串里输出未转义引号是已知高发问题（见 09-01 实锤），
+    解析成功的输出也要把引号剥掉再入库，避免污染后续 voice_prompt 缓存链"""
+    return _QUOTE_STRIP_RE.sub("", s or "").strip()
+
+
+@APP.post("/voices/smart_design")
+def voice_smart_design():
+    """智能生成：用户一句话描述 -> GLM 扩写为专业音色描述 + 命名建议 -> 设计并试听"""
+    if DESIGN_CLOSED:
+        return jsonify({"error": "音色设计升级维护中，敬请期待"}), 503
+    data = request.get_json(force=True, silent=True) or {}
+    idea = (data.get("idea") or "").strip()
+    if not idea:
+        return jsonify({"error": "idea required"}), 400
+    if len(idea) > 300:
+        return jsonify({"error": "描述请控制在 300 字以内"}), 400
+    bump("smart_designs")
+
+    voice_prompt, name_sug = "", ""
+    try:
+        body = {"messages": [{"role": "user",
+                              "content": SMART_PROMPT.replace("__IDEA__", idea)}],
+                "temperature": 0.8}
+        content = _glm_chat(body)
+        m = re.search(r"\{.*\}", content, re.DOTALL)   # 容忍 GLM 带出的多余文字
+        if m:
+            obj = json.loads(m.group(0))
+            voice_prompt = _strip_quotes(str(obj.get("voice_prompt") or ""))
+            name_sug = _strip_quotes(str(obj.get("name_suggestion") or ""))[:16]
+    except Exception as e:  # noqa: BLE001
+        log(f"[smart_design] GLM 推导失败，走用户原文兜底: {str(e)[:160]}")
+
+    if not voice_prompt:
+        # 兜底：GLM 不可用/JSON 炸掉 -> 直接拿用户原文拼模板（不依赖 JSON）
+        voice_prompt = f"一位{idea}的声音，亲切自然有温度，适合朗读有声书和睡前故事。"
+    if len(voice_prompt) > 500:
+        voice_prompt = voice_prompt[:500]
+
+    try:
+        core = _design_core(voice_prompt)
+        core["voice_prompt"] = voice_prompt
+        core["name_suggestion"] = name_sug
+        core["idea"] = idea
+        return jsonify(core)
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)[:300]}), 502
 
@@ -1556,6 +1635,144 @@ def me_voice_delete():
     try:
         r = _pg_request("DELETE", "user_voices", params={"uid": f"eq.{uid}"})
         return jsonify({"ok": True})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+
+
+# ---------- 音色库（多设备同步：创造/克隆/收藏音色的命名、重命名、删除） ----------
+# 表 user_voice_library，PK=(uid, voice_id)；每用户上限 20 条；重名检查由后端代码保证
+VOICE_LIBRARY_MAX = 20
+VOICE_NAME_RE = re.compile(r"^[\w\u4e00-\u9fa5\u00b7\- ]{1,16}$")
+VOICE_SOURCES = {"design", "clone", "preset", "smart"}
+
+
+def _validate_voice_name(name: str):
+    """名称合法性校验：非空、≤16 字符、仅中英文/数字/下划线/空格/·/-。返回 (规范化名, 错误)"""
+    name = (name or "").strip()
+    if not name:
+        return None, "音色名称不能为空"
+    if len(name) > 16:
+        return None, "音色名称最多 16 个字符"
+    if not VOICE_NAME_RE.fullmatch(name):
+        return None, "名称仅限中英文、数字、空格及 · - _"
+    return name, None
+
+
+def _library_list(uid: str):
+    r = _pg_request("GET", "user_voice_library",
+                    params={"uid": f"eq.{uid}", "select": "*",
+                            "order": "created_at.desc"})
+    if r.status_code != 200:
+        raise RuntimeError(f"查询音色库失败: {r.text[:200]}")
+    return r.json()
+
+
+def _find_name_dup(rows: list, name: str, exclude_voice_id: str | None = None):
+    """重名检查（trim + 忽略大小写）；返回撞名的既有条目或 None"""
+    key = name.strip().casefold()
+    for r in rows:
+        if exclude_voice_id and r.get("voice_id") == exclude_voice_id:
+            continue
+        if str(r.get("name", "")).strip().casefold() == key:
+            return r
+    return None
+
+
+@APP.get("/me/voices")
+def me_voices_list():
+    """当前账号的音色库全量列表（登录态，多设备一致）"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    try:
+        return jsonify({"voices": _library_list(uid)})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+
+
+@APP.post("/me/voices")
+def me_voices_create():
+    """收藏/新增音色到库：body {voice_id, name, source?, tag?, dialect?}
+    - 名称合法性 + 库内唯一性校验（同名同 id 视为覆盖更新，同名不同 id 拒绝）
+    - 成功返回全量列表（前端不用再拼 created_at）"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    voice_id = (data.get("voice_id") or "").strip()
+    if not voice_id or len(voice_id) > 200:
+        return jsonify({"error": "voice_id 无效"}), 400
+    name, err = _validate_voice_name(data.get("name") or "")
+    if err:
+        return jsonify({"error": err}), 400
+    source = (data.get("source") or "design").strip()
+    if source not in VOICE_SOURCES:
+        source = "design"
+    tag = (data.get("tag") or "").strip()[:40] or None
+    dialect = (data.get("dialect") or "").strip() or None
+    try:
+        rows = _library_list(uid)
+        if _find_name_dup(rows, name, exclude_voice_id=voice_id):
+            return jsonify({"error": f"已有同名音色「{name}」，请换一个名字"}), 409
+        if len(rows) >= VOICE_LIBRARY_MAX and not any(r["voice_id"] == voice_id for r in rows):
+            return jsonify({"error": f"音色库已满（上限 {VOICE_LIBRARY_MAX} 条），请先删除不需要的音色"}), 409
+        body = {"uid": uid, "voice_id": voice_id, "name": name,
+                "source": source, "tag": tag, "updated_at": datetime.utcnow().isoformat()}
+        if dialect:
+            body["dialect"] = dialect
+        r = _pg_request("POST", "user_voice_library", json_body=body, upsert=True,
+                        params={"on_conflict": "uid,voice_id"})
+        if r.status_code not in (200, 201):
+            return jsonify({"error": f"保存失败: {r.text[:200]}"}), 502
+        if not any(x["voice_id"] == voice_id for x in rows):
+            _add_history(uid, "voice", f"收藏音色「{name}」", {"voice_id": voice_id, "source": source})
+        return jsonify({"voices": _library_list(uid)})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+
+
+@APP.patch("/me/voices/<voice_id>")
+def me_voices_rename(voice_id: str):
+    """重命名库内音色（同样做合法性 + 唯一性校验）"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    name, err = _validate_voice_name(data.get("name") or "")
+    if err:
+        return jsonify({"error": err}), 400
+    try:
+        rows = _library_list(uid)
+        if not any(r["voice_id"] == voice_id for r in rows):
+            return jsonify({"error": "音色不存在或已删除"}), 404
+        if _find_name_dup(rows, name, exclude_voice_id=voice_id):
+            return jsonify({"error": f"已有同名音色「{name}」，请换一个名字"}), 409
+        r = _pg_request("PATCH", "user_voice_library",
+                        params={"uid": f"eq.{uid}", "voice_id": f"eq.{voice_id}"},
+                        json_body={"name": name, "updated_at": datetime.utcnow().isoformat()})
+        if r.status_code not in (200, 204):
+            return jsonify({"error": f"重命名失败: {r.text[:200]}"}), 502
+        return jsonify({"voices": _library_list(uid)})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)[:200]}), 502
+
+
+@APP.delete("/me/voices/<voice_id>")
+def me_voices_delete(voice_id: str):
+    """从库中删除音色（仅删本人条目）"""
+    try:
+        uid = _require_uid()
+    except ValueError:
+        return jsonify({"error": "未登录或登录已过期"}), 401
+    try:
+        r = _pg_request("DELETE", "user_voice_library",
+                        params={"uid": f"eq.{uid}", "voice_id": f"eq.{voice_id}"})
+        if r.status_code not in (200, 204):
+            return jsonify({"error": f"删除失败: {r.text[:200]}"}), 502
+        return jsonify({"voices": _library_list(uid)})
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)[:200]}), 502
 

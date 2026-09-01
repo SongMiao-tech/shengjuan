@@ -241,6 +241,14 @@
    - **线上验证（零成本，不触发真实设计）**：先往缓存表预置一条记录（hash → 已有的「睡前故事姐姐」voice_id），再用同描述调接口 → 返回 `cached=true` 且 voice_id 与预置值一致（证明设计接口确实没被调用），note 文案正确；描述前后/中间插入空格后仍命中（归一化生效）；use_count 由 1 递增到 3。验证完清理预置记录。前端线上 8 项特征值全命中。
    - **两个部署坑**：①`manageCloudRun deploy` 返回的 buildId/runId 是**上一次**部署的旧值，判断本次状态必须用 `getDeployRecords` 的 latestDeploy（DeployId/Status/FlowRatio）；②`managePgDatabase applyMigration` 会在 MCP 工作目录根（非 shengjuan/）另存一份精简副本，内容与本地文件不一致会导致后续 LOCAL_MIGRATION_FILE_MISMATCH，用完要删。顺带把 `cloudrun/cloudbaserc.json`（deploy 自动生成）加入 .gitignore。
 
+7. **自定义音色（创造）功能完善：音色库 + 多设备同步 + 智能生成**（后端 audiobook-api-063/064 全量，前端已上线）：
+   - **音色库**：PG 新表 `user_voice_library`（migration `20260901190000`，PK=(uid,voice_id)，RLS 隔离，上限 20 条）；后端四接口 `GET/POST /me/voices`、`PATCH/DELETE /me/voices/<voice_id>`（全部 Bearer 鉴权）；名称校验前后端一致（非空、≤16 字、仅中英文/数字/空格/·-_、唯一性 trim+忽略大小写），同名同 voice_id 视为覆盖更新（upsert），同名不同 voice_id 返 409。旧 `/me/voice`（user_voices 单条覆盖式）保留兼容。
+   - **多设备同步**：前端登录=云端全量列表（本地 localStorage 仅作断网缓存），未登录=本地库；旧 sqVoices 数据经 normLibItems 自动迁移；库条目自动 upsert 进音色选择列表。
+   - **智能生成**：音色菜单首卡入口——用户一句话描述（1~300 字）→ GLM 配音导演 prompt 扩写为专业 voice_prompt（60~200 字）+ 命名建议（4~8 字）→ 走 `_design_core`（共享缓存/免费 CosyVoice 设计）→ 回显 AI 设定 + 试听 + 预填建议名保存（source=smart）。GLM 全链失败有模板兜底，输出引号统一 `_strip_quotes()` 剥离（防 JSON 未转义引号污染缓存链）。
+   - **交互改造**：设计/克隆/智能生成完成均改为「命名输入 + 保存到我的音色库」模式（不再自动起时间戳名强绑）；库列表每行 ▶试听/用/✎重命名/×删除。
+   - **降级加固（064）**：设计成功但试听合成失败（如余额波动/音色部署中）不再整体 502 丢 voice_id——返回 `preview_base64=None` + note 说明，前端 playPreview 判空并提示「可直接命名保存，稍后可在音色库试听」。
+   - **线上 E2E 全过**：无 token 401 ✅ / 注册登录 ✅ / 保存 200 ✅ / 重名（含尾随空格归一化）409 ✅ / 17 字与含!名称 400 ✅ / 重命名 200 ✅ / 同名同 id 覆盖 200 ✅ / 跨条目撞名 409 ✅ / 删除 200 ✅ / smart_design 真链路——GLM 推导「梦语姐姐」+ 专业 voice_prompt + CosyVoice 设计免费 + 试听 mp3（229KB b64）✅。**阿里云欠费已恢复（充值生效），试听合成全链路可用**。前端线上 10 项特征值全命中。
+
 ### 遗留/建议（09-01 新增）
 
 - ~~TTS 合成不可用~~ 已排除：系测试误用非项目音色，项目内置 uranus 系音色全部正常；TTS_RESOURCE env 口子保留备用。
@@ -252,7 +260,7 @@
    - **线上验证（零成本）**：重置预置缓存行（provider=minimax + 已知 voice_id）→ `GET /voices/design/info` 返回 provider=minimax ✅；`POST /voices/design` 返回 `cached=true` + voice_id 等于预置值 + 试听为真实 mp3（ID3 头）✅；use_count 1→2 ✅；验证完清理。前端线上特征值（design/info、CosyVoice 设计、新错误文案）全命中 ✅。CosyVoice 真实链路（设计+合成）待用户配置 DASHSCOPE_API_KEY 后首跑验证。
    - **认知修正**：CosyVoice 设计/合成**都是纯 HTTP REST**（此前误判走 WebSocket、估半天）——实际改造量 1~2 小时。
    - **设计入口临时下线（commit eca26f3，后端 060）**：用户要求停用 MiniMax 计费通道——前后端各一个 `DESIGN_CLOSED = True` 开关，前端隐藏「创造新声音」卡片、后端 `/voices/design` 返 503（`/voices/design/info` 返 provider=closed）。CosyVoice 通道代码完好保留，恢复时两处开关改 false 重新部署即可；若已配 DASHSCOPE_API_KEY，恢复后自动切 CosyVoice。线上验证：POST 503 ✅ / info provider=closed ✅ / 前端特征 ✅。克隆与预置音色不受影响，不调用即无 MiniMax 费用。
-   - **CosyVoice 上线 + 首跑验证（commit 763266f，后端 062，key 用户已提供并写入 EnvParams）**：①本地实测——设计接口（免费）创建成功（voice_id 形如 `cosyvoice-v3.5-plus-vd-shengjuan-xxx`，自带 wav 试听 base64），合成接口成功（72 字符计费，返回 OSS 音频 URL 下载为 mp3，试听文件 `outputs/cosyvoice_design_test.mp3`）；`sk-ws-` 前缀 key 走默认域名 `dashscope.aliyuncs.com` 即可，**无需 WorkspaceId**。②EnvParams 已加 `DASHSCOPE_API_KEY`（其余 8 个 key 原样保留），`/voices/design/info` 线上返回 provider=cosyvoice ✅。③设计入口已恢复开放（`DESIGN_CLOSED=false`）。④**遗留卡点：阿里云账号 Arrearage（欠费）**——第一次本地合成耗尽了账号体验金，此后所有合成报 `Arrearage: Access denied`（设计接口仍免费可用，云端首跑创建了 1 个音色但预览合成失败未入缓存）；**待用户在百炼控制台充值后合成即恢复**，代码无需任何改动。免费音色创建额度已用 2/10（本地验证 1 + 云端验证 1）。
+   - **CosyVoice 上线 + 首跑验证（commit 763266f，后端 062，key 用户已提供并写入 EnvParams）**：①本地实测——设计接口（免费）创建成功（voice_id 形如 `cosyvoice-v3.5-plus-vd-shengjuan-xxx`，自带 wav 试听 base64），合成接口成功（72 字符计费，返回 OSS 音频 URL 下载为 mp3，试听文件 `outputs/cosyvoice_design_test.mp3`）；`sk-ws-` 前缀 key 走默认域名 `dashscope.aliyuncs.com` 即可，**无需 WorkspaceId**。②EnvParams 已加 `DASHSCOPE_API_KEY`（其余 8 个 key 原样保留），`/voices/design/info` 线上返回 provider=cosyvoice ✅。③设计入口已恢复开放（`DESIGN_CLOSED=false`）。④~~遗留卡点：阿里云账号 Arrearage（欠费）~~ **已解决：用户充值后合成恢复，smart_design 线上试听全链路验证通过（见第 7 条）**。免费音色创建额度已用 2/10（本地验证 1 + 云端验证 1），smart_design 再用 1 个（3/10）。
 
 ---
 
