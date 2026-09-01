@@ -132,11 +132,15 @@
   /* ---- 迷你播放栏（底部常驻，仅在列表页显示） ---- */
   .mini-bar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
-    height: 60px; background: rgba(10, 8, 18, .92);
+    /* Android15 边缘到边缘/全面屏手势条：高度加 safe-area，背景仍铺到屏幕底，
+       内容靠 border-box + padding-bottom 居中在手势条之上的内容盒里 */
+    height: calc(60px + env(safe-area-inset-bottom, 0px));
+    padding: 0 16px env(safe-area-inset-bottom, 0px);
+    background: rgba(10, 8, 18, .92);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     border-top: 1px solid var(--line);
     display: flex; align-items: center; gap: 12px;
-    padding: 0 16px; color: var(--ink);
+    color: var(--ink);
     cursor: pointer; transition: background .2s;
     will-change: transform;   /* 固定条提升为合成层，滚动/进度更新不牵连整页重绘 */
   }
@@ -167,7 +171,7 @@
     width: 0%; transition: width .35s linear;
   }
   @media (max-width: 480px) {
-    .mini-bar { height: 56px; padding: 0 12px; gap: 10px; }
+    .mini-bar { height: calc(56px + env(safe-area-inset-bottom, 0px)); padding: 0 12px env(safe-area-inset-bottom, 0px); gap: 10px; }
     .mini-bar .mini-cover { width: 38px; height: 38px; }
     .mini-bar .mini-title { font-size: .82rem; }
   }

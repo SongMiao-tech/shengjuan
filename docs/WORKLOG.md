@@ -276,6 +276,12 @@
    - **修复**：①`switchView()` 给 body 切换 `v-shelf` 类，≤900px 断点内 `body.v-shelf aside` 与 `body.v-shelf .work-head` 隐藏（桌面侧栏布局不受影响）；②≤640px `.sec-head` 两行化（标题+按钮一行，副题独占一行 flex-basis:100%）+ 按钮 `white-space:nowrap`；③书架三键触控目标 34→40px（`.sc-btn.dl` 百分比字号同步放大）；④`.shelf-empty` 加 `text-wrap: balance` 治「即可收/藏」式尴尬折行。
    - **回归实测**（playwright 双视口）：桌面书架 aside 可见 ✅；手机创作视图 aside 可见 ✅ / 书架视图 aside 隐藏 ✅ / 切回创作视图恢复 ✅。验证截图：`outputs/手机端优化_书架视图_09-01.png` 等 3 张。
 
+13. **修复：手机端迷你播放栏被屏幕底边截断（用户真机截图反馈）**（前端 story.html 已上线）：
+   - **根因**：story.html 自 MVP 起带 `viewport-fit=cover`，在 Android 15 边缘到边缘渲染的内嵌浏览器（无底部工具栏那种）里，`position:fixed; bottom:0` 会顶到物理屏幕底，被系统手势条区域盖住——迷你栏下半截（播放键）被截掉。
+   - **修复**：`.mini-bar` 高度改 `calc(60px + env(safe-area-inset-bottom, 0px))`（480px 断点 56px 同理），`padding-bottom: env(...)` 配合全局 border-box，内容（封面/标题/播放键）居中在手势条之上的内容盒里，半透明背景仍铺到屏幕底（视觉连续）。与页面 toast（`bottom: calc(110px + env(...))`）、body 留白（`calc(96px + env(...))`）的既有 env 模式一致；480px 断点原 `padding: 0 12px` 简写会冲掉 padding-bottom，已同步改写。
+   - **回归实测**（375×812 手机视口播放→返回列表）：栏底不超视口 ✅ / 播放键完整在栏内 ✅ / 封面完整在栏内 ✅。本机 Edge 的 CDP 不支持 `Emulation.setSafeAreaInsets`，env>0 场景无法桌面模拟——写法是标准 env 模式（Chromium 69+/iOS 均支持解析），**待用户真机复测**；若其内嵌内核不上报 safe-area（env=0），可能仍贴底，届时再评估 JS visualViewport 方案。
+   - 验证截图：`outputs/迷你播放栏修复_手机回归_09-01.png`。
+
 ### 遗留/建议（09-01 新增）
 
 - ~~TTS 合成不可用~~ 已排除：系测试误用非项目音色，项目内置 uranus 系音色全部正常；TTS_RESOURCE env 口子保留备用。
