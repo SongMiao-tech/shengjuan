@@ -252,6 +252,7 @@
    - **线上验证（零成本）**：重置预置缓存行（provider=minimax + 已知 voice_id）→ `GET /voices/design/info` 返回 provider=minimax ✅；`POST /voices/design` 返回 `cached=true` + voice_id 等于预置值 + 试听为真实 mp3（ID3 头）✅；use_count 1→2 ✅；验证完清理。前端线上特征值（design/info、CosyVoice 设计、新错误文案）全命中 ✅。CosyVoice 真实链路（设计+合成）待用户配置 DASHSCOPE_API_KEY 后首跑验证。
    - **认知修正**：CosyVoice 设计/合成**都是纯 HTTP REST**（此前误判走 WebSocket、估半天）——实际改造量 1~2 小时。
    - **设计入口临时下线（commit eca26f3，后端 060）**：用户要求停用 MiniMax 计费通道——前后端各一个 `DESIGN_CLOSED = True` 开关，前端隐藏「创造新声音」卡片、后端 `/voices/design` 返 503（`/voices/design/info` 返 provider=closed）。CosyVoice 通道代码完好保留，恢复时两处开关改 false 重新部署即可；若已配 DASHSCOPE_API_KEY，恢复后自动切 CosyVoice。线上验证：POST 503 ✅ / info provider=closed ✅ / 前端特征 ✅。克隆与预置音色不受影响，不调用即无 MiniMax 费用。
+   - **CosyVoice 上线 + 首跑验证（commit 763266f，后端 062，key 用户已提供并写入 EnvParams）**：①本地实测——设计接口（免费）创建成功（voice_id 形如 `cosyvoice-v3.5-plus-vd-shengjuan-xxx`，自带 wav 试听 base64），合成接口成功（72 字符计费，返回 OSS 音频 URL 下载为 mp3，试听文件 `outputs/cosyvoice_design_test.mp3`）；`sk-ws-` 前缀 key 走默认域名 `dashscope.aliyuncs.com` 即可，**无需 WorkspaceId**。②EnvParams 已加 `DASHSCOPE_API_KEY`（其余 8 个 key 原样保留），`/voices/design/info` 线上返回 provider=cosyvoice ✅。③设计入口已恢复开放（`DESIGN_CLOSED=false`）。④**遗留卡点：阿里云账号 Arrearage（欠费）**——第一次本地合成耗尽了账号体验金，此后所有合成报 `Arrearage: Access denied`（设计接口仍免费可用，云端首跑创建了 1 个音色但预览合成失败未入缓存）；**待用户在百炼控制台充值后合成即恢复**，代码无需任何改动。免费音色创建额度已用 2/10（本地验证 1 + 云端验证 1）。
 
 ---
 
