@@ -234,10 +234,17 @@
    - **翻译全挂真根因：GLM 在 JSON 字符串里输出未转义双引号**（如 `"Sandy said, "Second brother..."`），json.loads 必炸；重试依赖 GLM 碰巧改用单引号，概率性通过——对话密集文本（引号多）几乎必踩。临时诊断端点（/debug/translate，跑真实管线函数+逐批原始响应）抓到实锤。修复三层：①TRANS_PROMPT 强约束「JSON 内一律单引号」；②批 JSON 两连败后**逐段纯文本翻译兜底**（不经 JSON，无转义问题）；③单段输出长度合理性校验防幻觉。顺带修英文音色预览：豆包英文音色不吃纯中文输入（静默无音频），预览文案按音色前缀切英文。
    - **最终 E2E**：9 段西游记对话文本 9/9 段 en=True 纯英文朗读，无降级，done 57.3s，note 不再出现。
 4. **门禁弹窗文案「解锁播放」→「解锁」**（commit a5bed00，story.html 已部署）：仅改显示文字，/auth/login 验证逻辑与按钮交互不动。线上逐字节比对一致。
+5. **自定义音色设计费降本（路径①：堵重复设计）**（commit 7f4a318，前端 index.html + 后端 audiobook-api-058 已部署验证）：用户反馈 MiniMax Voice Design 太贵，成本核查后先落地零风险止血方案。
+   - **文档纠错**：`docs/技术方案.md` 原记「TTS $60/百万字符（≈0.4 元/万字）」**算错 10 倍**，实为 **≈4.32 元/万字符**（$60/1M → $0.6/万 × 7.2）。MiniMax 合成单价其实比火山豆包（¥3.0/万字符）贵 44%，比阿里 CosyVoice v3.5-flash（¥0.8/万字符）贵 5.4 倍——此前长期低估了这块成本。
+   - **设计费横向对比**（每音色）：MiniMax Voice Design ¥21.6；MiniMax Rapid Cloning ¥10.8（需上传音频样本，非描述生成）；阿里百炼 CosyVoice 声音设计 **免费** / Qwen ¥0.2；火山豆包声音复刻 **0 元创建费**（按合成字符计费）。
+   - **本次落地**：PG 新表 `voice_design_cache`（migration `20260901170000`，prompt_hash 主键，全局跨用户共享）；后端 `/voices/design` 先按描述哈希查缓存——命中则直接复用历史 voice_id、不调设计接口不扣费（仍需一次试听合成，约 ¥0.01），未命中才设计并写回缓存；PG 不可用时优雅降级为不缓存，不阻塞主流程。前端加**扣费二次确认**（明示约 ¥21.6 与「相同描述自动复用」说明），缓存命中时提示「本次未产生设计费」且音色标签改为「设计音色 · 复用」。
+   - **线上验证（零成本，不触发真实设计）**：先往缓存表预置一条记录（hash → 已有的「睡前故事姐姐」voice_id），再用同描述调接口 → 返回 `cached=true` 且 voice_id 与预置值一致（证明设计接口确实没被调用），note 文案正确；描述前后/中间插入空格后仍命中（归一化生效）；use_count 由 1 递增到 3。验证完清理预置记录。前端线上 8 项特征值全命中。
+   - **两个部署坑**：①`manageCloudRun deploy` 返回的 buildId/runId 是**上一次**部署的旧值，判断本次状态必须用 `getDeployRecords` 的 latestDeploy（DeployId/Status/FlowRatio）；②`managePgDatabase applyMigration` 会在 MCP 工作目录根（非 shengjuan/）另存一份精简副本，内容与本地文件不一致会导致后续 LOCAL_MIGRATION_FILE_MISMATCH，用完要删。顺带把 `cloudrun/cloudbaserc.json`（deploy 自动生成）加入 .gitignore。
 
 ### 遗留/建议（09-01 新增）
 
 - ~~TTS 合成不可用~~ 已排除：系测试误用非项目音色，项目内置 uranus 系音色全部正常；TTS_RESOURCE env 口子保留备用。
+- **自定义音色进一步降本（路径②/③，待决策）**：②换阿里云百炼 CosyVoice——声音设计与复刻均免费、合成 ¥0.8~1.5/万字符（比 MiniMax 便宜 3~5 倍）、中文自然度好、北京地域合规；代价是需申请 DASHSCOPE_API_KEY + WorkspaceId，且合成走 DashScope **WebSocket** 协议而非简单 REST，接入改造约半天。③降级到豆包声音复刻——改造最小、0 元创建费，但卖点从「一句话描述造音色」变为「上传录音克隆音色」，演示观感打折。背景：MiniMax 目前只承担「设计音色」这一个卖点功能（长句断句不稳，主朗读早已回退豆包），¥21.6/次买演示效果性价比偏低。
 
 ---
 
