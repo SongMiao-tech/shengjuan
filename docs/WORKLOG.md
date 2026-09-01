@@ -233,6 +233,7 @@
    - **TTS 55000000 是误报虚惊**：测试脚本随手用了非项目音色 `zh_male_rongsheng`（不在 seed-tts-2.0 音色目录）；项目内置音色全为 uranus 系实测全部正常，克隆音色（seed-icl-2.0）亦正常。顺带修正认知：seed-tts-2.0 只认 `*_uranus_bigtts`（2.0），moon 系属 1.0 要走 seed-tts-1.0。pick_resource 保留 TTS_RESOURCE env 覆盖口子。
    - **翻译全挂真根因：GLM 在 JSON 字符串里输出未转义双引号**（如 `"Sandy said, "Second brother..."`），json.loads 必炸；重试依赖 GLM 碰巧改用单引号，概率性通过——对话密集文本（引号多）几乎必踩。临时诊断端点（/debug/translate，跑真实管线函数+逐批原始响应）抓到实锤。修复三层：①TRANS_PROMPT 强约束「JSON 内一律单引号」；②批 JSON 两连败后**逐段纯文本翻译兜底**（不经 JSON，无转义问题）；③单段输出长度合理性校验防幻觉。顺带修英文音色预览：豆包英文音色不吃纯中文输入（静默无音频），预览文案按音色前缀切英文。
    - **最终 E2E**：9 段西游记对话文本 9/9 段 en=True 纯英文朗读，无降级，done 57.3s，note 不再出现。
+4. **门禁弹窗文案「解锁播放」→「解锁」**（commit a5bed00，story.html 已部署）：仅改显示文字，/auth/login 验证逻辑与按钮交互不动。线上逐字节比对一致。
 
 ### 遗留/建议（09-01 新增）
 
