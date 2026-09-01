@@ -244,7 +244,13 @@
 ### 遗留/建议（09-01 新增）
 
 - ~~TTS 合成不可用~~ 已排除：系测试误用非项目音色，项目内置 uranus 系音色全部正常；TTS_RESOURCE env 口子保留备用。
-- **自定义音色进一步降本（路径②/③，待决策）**：②换阿里云百炼 CosyVoice——声音设计与复刻均免费、合成 ¥0.8~1.5/万字符（比 MiniMax 便宜 3~5 倍）、中文自然度好、北京地域合规；代价是需申请 DASHSCOPE_API_KEY + WorkspaceId，且合成走 DashScope **WebSocket** 协议而非简单 REST，接入改造约半天。③降级到豆包声音复刻——改造最小、0 元创建费，但卖点从「一句话描述造音色」变为「上传录音克隆音色」，演示观感打折。背景：MiniMax 目前只承担「设计音色」这一个卖点功能（长句断句不稳，主朗读早已回退豆包），¥21.6/次买演示效果性价比偏低。
+- ~~自定义音色进一步降本（路径②/③，待决策）~~ → 路径②通道代码已落地（见第 6 条），路径③（豆包复刻降级）作为备选保留。背景：MiniMax 目前只承担「设计音色」这一个卖点功能（长句断句不稳，主朗读早已回退豆包）。
+- **⑥ 自定义音色降本路径②：接入阿里云百炼 CosyVoice 通道（commit 2613079，后端 059 + 前端已上线）**
+   - **形态**：可选通道，后端 `cosy_enabled()` 检测 `DASHSCOPE_API_KEY`——未配置时 `design_provider()` 返回 minimax，一切走原 MiniMax 逻辑，现有功能零影响；配置后设计/合成自动切 CosyVoice。`DASHSCOPE_WORKSPACE_ID` 可选（配置了走 `{ws}.cn-beijing.maas.aliyuncs.com`，否则默认 `dashscope.aliyuncs.com`）。
+   - **实现**：`cosy_design()`（voice-enrollment/create_voice，创建免费，prefix=shengjuan）+ `cosy_tts_bytes()`（SpeechSynthesizer 纯 HTTP，模型名取自 voice_id 的 `-vd-` 前缀，非流式返回音频 URL 再下载）；`custom_tts_bytes()`/`synth_dispatch()` 按 voice_id 前缀分发（cosyvoice → CosyVoice，ttv-voice → MiniMax）；缓存表加 provider 过滤（`design_cache_get(key, provider)`），同描述在不同通道各自缓存。CosyVoice 设计接口自带 wav 试听但前端统一 mp3 播放，故预览统一走合成（部署中失败自动 4 秒重试一次）。
+   - **前端**：新增 `GET /voices/design/info`，设计确认弹窗按通道动态显示费用（minimax 显示 ¥21.6，cosyvoice 显示「设计免费」）；音色标签区分「CosyVoice 设计 / MiniMax 设计」。
+   - **线上验证（零成本）**：重置预置缓存行（provider=minimax + 已知 voice_id）→ `GET /voices/design/info` 返回 provider=minimax ✅；`POST /voices/design` 返回 `cached=true` + voice_id 等于预置值 + 试听为真实 mp3（ID3 头）✅；use_count 1→2 ✅；验证完清理。前端线上特征值（design/info、CosyVoice 设计、新错误文案）全命中 ✅。CosyVoice 真实链路（设计+合成）待用户配置 DASHSCOPE_API_KEY 后首跑验证。
+   - **认知修正**：CosyVoice 设计/合成**都是纯 HTTP REST**（此前误判走 WebSocket、估半天）——实际改造量 1~2 小时。
 
 ---
 
