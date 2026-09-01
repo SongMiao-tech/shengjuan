@@ -597,7 +597,7 @@
       <span class="style-row-label">多版本</span>
       <button class="style-chip active" data-style="normal">正常</button>
       <button class="style-chip" data-style="slow">慢速</button>
-      <button class="style-chip" data-style="bilingual">双语</button>
+      <button class="style-chip" data-style="english">英语</button>
       <button class="style-chip" data-style="trailer">预告片</button>
     </div>
 
@@ -1430,7 +1430,7 @@ async function fetchWikiText(title) {
 
 /* ───────── 生成 ───────── */
 const STAGE_CN = { queued: "排队中", analyzing: "情感分析中", translating: "英文翻译中", synthesizing: "语音合成中", mixing: "混音合成中", multi: "多版本" };
-const STYLE_CN = { normal: "正常", slow: "慢速", bilingual: "双语", trailer: "预告片" };
+const STYLE_CN = { normal: "正常", slow: "慢速", english: "英语", trailer: "预告片" };
 
 /* 多版本风格勾选 */
 let selectedStyles = new Set(["normal"]);

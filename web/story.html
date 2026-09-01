@@ -551,7 +551,7 @@
 <!-- 就寝时段家长密码解锁弹窗 -->
 <div id="gateModal" style="display:none; position:fixed; inset:0; background:rgba(10,8,18,.7); z-index:99; align-items:center; justify-content:center;">
   <div class="clip-modal-card" style="max-width:340px;">
-    <div class="cm-title">🌙 现在不是故事时间</div>
+    <div class="cm-title" id="gateTitle">🌙 现在不是故事时间</div>
     <div class="cm-sub" id="gateSub"></div>
     <div style="font-size:.72rem;color:var(--ink-faint);margin-bottom:10px;" id="gateUser"></div>
     <input type="password" id="gatePwd" placeholder="家长密码" autocomplete="current-password"
@@ -967,17 +967,18 @@ async function openStory(id) {
   return _openStoryProceed(id);
 }
 
-/* 就寝时段外解锁：需输入家长密码（走 /auth/login 校验） */
+/* 家长密码解锁：走 /auth/login 校验（就寝门禁与家长中心共用同一套验证逻辑） */
 let gateCallback = null;
-function requireParentUnlock(onPass) {
+function requireParentUnlock(onPass, title, sub) {
   const auth = getAuth();
   if (!auth || !auth.token || !(auth.name || auth.username)) {
     return showPvModal("🔒", "需要家长身份验证",
-      "就寝时段外播放需要验证家长密码，请先登录声卷账号。",
+      `${sub || "就寝时段外播放需要验证家长密码"}，请先登录声卷账号。`,
       "去登录 / 注册", () => location.href = "index.html");
   }
   const ctrl = parentCtrl();
-  $("gateSub").textContent = `就寝时段 ${ctrl.bedStart} ~ ${ctrl.bedEnd} 之外，需输入家长密码解锁`;
+  $("gateTitle").textContent = title || "🌙 现在不是故事时间";
+  $("gateSub").textContent = sub || `就寝时段 ${ctrl.bedStart} ~ ${ctrl.bedEnd} 之外，需输入家长密码解锁`;
   $("gateUser").textContent = "家长：" + (auth.name || auth.username);
   $("gatePwd").value = "";
   $("gateErr").textContent = "";
@@ -1289,15 +1290,15 @@ $("parentVoiceBtn").onclick = async () => {
   }
   const est = Math.max(60, Math.round(curText.chars / 4.5));
   showPvModal("👨‍👩‍👧", `用「${voice.name}」讲《${curStory.title}》？`,
-    `需要实时录制，大约 ${est > 90 ? Math.round(est / 60) + " 分钟" : est + " 秒"}，生成期间可以先听原来的版本。`,
-    "开始录制", () => { $("pvModal").style.display = "none"; startParentVoiceRender(voice); });
+    `需要实时生成，大约 ${est > 90 ? Math.round(est / 60) + " 分钟" : est + " 秒"}，生成期间可以先听原来的版本。`,
+    "开始生成", () => { $("pvModal").style.display = "none"; startParentVoiceRender(voice); });
 };
 
 async function startParentVoiceRender(voice) {
   pvBusy = true;
   const btn = $("parentVoiceBtn");
-  btn.textContent = "录制中…";
-  toast("🎙️ 正在用爸妈的声音录制这个故事…", 5000);
+  btn.textContent = "生成中…";
+  toast("🎙️ 正在用爸妈的声音生成这个故事…", 5000);
   try {
     const r = await fetch(API + "/tasks", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -1310,7 +1311,7 @@ async function startParentVoiceRender(voice) {
       await new Promise(res => setTimeout(res, 5000));
       st = await fetch(`${API}/tasks/${task_id}`).then(x => x.json());
       if (st.status !== "running") break;
-      if (i % 4 === 3) toast(`录制中… ${st.progress || ""}（${st.stage === "mixing" ? "混音" : "合成"}）`);
+      if (i % 4 === 3) toast(`生成中… ${st.progress || ""}（${st.stage === "mixing" ? "混音" : "合成"}）`);
     }
     if (st.status !== "done") throw new Error(st.error || "生成超时，请稍后再试");
     st = await fetch(`${API}/tasks/${task_id}?audio=1`).then(x => x.json());   // 成品 base64 需显式拉取
@@ -1326,7 +1327,7 @@ async function startParentVoiceRender(voice) {
     if (clipEnabled("opening")) { toast("✨ 爸妈的声音版好啦"); startClipChain("opening"); }
     else { startStoryAt(0); toast("✨ 爸妈的声音版好啦，正在播放"); }
   } catch (e) {
-    toast("录制失败：" + String(e.message || e).slice(0, 80), 4000);
+    toast("生成失败：" + String(e.message || e).slice(0, 80), 4000);
   } finally {
     pvBusy = false;
     btn.textContent = "👨‍👩‍👧 爸妈的声音讲";
@@ -1648,8 +1649,11 @@ async function cacheCurrentStory() {
   }
 }
 
-/* 家长中心弹窗 */
-function openParentCenter() { renderParentCenter(); $("parentModal").style.display = "flex"; }
+/* 家长中心弹窗（打开需验证家长密码，防止孩子自行修改管控设置） */
+function openParentCenter() {
+  requireParentUnlock(() => { renderParentCenter(); $("parentModal").style.display = "flex"; },
+    "🔒 家长中心", "打开家长中心需要验证家长密码");
+}
 $("parentCenterBtn").onclick = openParentCenter;
 $("pcClose").onclick = () => { $("parentModal").style.display = "none"; };
 $("pcSpeakerBtn").onclick = () => { $("parentModal").style.display = "none"; $("speakerModal").style.display = "flex"; };

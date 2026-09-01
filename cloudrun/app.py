@@ -425,14 +425,14 @@ def analyze_long(text: str):
     return out
 
 def translate_segments(segments: list) -> list:
-    """GLM 逐段翻译为英文；失败时返回 [None]*n（双语版降级为纯中文）"""
+    """GLM 逐段翻译为英文；失败时返回 [None]*n（英语版该段降级保留中文）"""
     texts = [s["text"] for s in segments]
     body = {"messages": [{"role": "user", "content": TRANS_PROMPT.replace("__TEXT__", json.dumps(texts, ensure_ascii=False))}],
             "temperature": 0.3}
     try:
         content = _glm_chat(body)
     except Exception as e:  # noqa: BLE001
-        log(f"[translate] 翻译失败（全模型链），双语版降级为纯中文: {str(e)[:100]}")
+        log(f"[translate] 翻译失败（全模型链），英语版该段降级保留中文: {str(e)[:100]}")
         return [None] * len(texts)
     m = _re.search(r"\[.*\]", content, _re.DOTALL)
     if not m:
@@ -598,16 +598,17 @@ def run_pipeline(task_id: str, text: str, narrator: str, use_bgm: bool, dialect:
                 seg["speed"] = min(30, seg["speed"] + 10)
             pause = 0.45
             force_bgm = "tense.mp3"
-        elif style == "bilingual":                # 双语版：中文段落 + 英文朗读交替
+        elif style == "english":                  # 英语版：整篇替换为英文朗读（个别段翻译失败降级保留中文）
             t["stage"] = "translating"
             en_list = translate_segments(segments)
             inter = []
             for seg, en in zip(segments, en_list):
-                inter.append(seg)
                 if en:
                     inter.append({"text": en, "emotion": seg["emotion"],
-                                  "intensity": round(seg["intensity"] * 0.6, 2),
+                                  "intensity": seg["intensity"],
                                   "speed": 0, "role": "English", "gender": "unknown", "en": True})
+                else:
+                    inter.append(seg)
             segments = inter
 
         t["segments"] = segments
@@ -969,7 +970,7 @@ def create_task():
     use_bgm = bool(data.get("bgm", True))
     dialect = (data.get("dialect") or "").strip() or None   # 方言通道：sichuan/yue/dongbei/beijing/shanghai/henan/shaanxi/tianjin
     style = (data.get("style") or "normal").strip().lower()
-    if style not in ("normal", "slow", "trailer", "bilingual", "bedtime"):
+    if style not in ("normal", "slow", "trailer", "english", "bedtime"):
         style = "normal"
     task_id = uuid.uuid4().hex[:12]
     TASKS[task_id] = {"status": "running", "stage": "queued", "progress": "0",
