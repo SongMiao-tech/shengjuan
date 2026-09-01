@@ -251,6 +251,7 @@
    - **前端**：新增 `GET /voices/design/info`，设计确认弹窗按通道动态显示费用（minimax 显示 ¥21.6，cosyvoice 显示「设计免费」）；音色标签区分「CosyVoice 设计 / MiniMax 设计」。
    - **线上验证（零成本）**：重置预置缓存行（provider=minimax + 已知 voice_id）→ `GET /voices/design/info` 返回 provider=minimax ✅；`POST /voices/design` 返回 `cached=true` + voice_id 等于预置值 + 试听为真实 mp3（ID3 头）✅；use_count 1→2 ✅；验证完清理。前端线上特征值（design/info、CosyVoice 设计、新错误文案）全命中 ✅。CosyVoice 真实链路（设计+合成）待用户配置 DASHSCOPE_API_KEY 后首跑验证。
    - **认知修正**：CosyVoice 设计/合成**都是纯 HTTP REST**（此前误判走 WebSocket、估半天）——实际改造量 1~2 小时。
+   - **设计入口临时下线（commit eca26f3，后端 060）**：用户要求停用 MiniMax 计费通道——前后端各一个 `DESIGN_CLOSED = True` 开关，前端隐藏「创造新声音」卡片、后端 `/voices/design` 返 503（`/voices/design/info` 返 provider=closed）。CosyVoice 通道代码完好保留，恢复时两处开关改 false 重新部署即可；若已配 DASHSCOPE_API_KEY，恢复后自动切 CosyVoice。线上验证：POST 503 ✅ / info provider=closed ✅ / 前端特征 ✅。克隆与预置音色不受影响，不调用即无 MiniMax 费用。
 
 ---
 
