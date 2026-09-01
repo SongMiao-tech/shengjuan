@@ -2016,8 +2016,8 @@ function openVoiceMenu() {
   $("pathClone").onclick = openClonePanel;
 }
 
-/* 音色设计临时下线：MiniMax 通道停用，待配置 DASHSCOPE_API_KEY 走 CosyVoice 后恢复（后端 DESIGN_CLOSED 同步改） */
-const DESIGN_CLOSED = true;
+/* 音色设计开关：true=隐藏入口（停 MiniMax），false=开放。DASHSCOPE_API_KEY 已配置，当前走 CosyVoice 免费设计（后端 DESIGN_CLOSED 同步改） */
+const DESIGN_CLOSED = false;
 
 /* ── 路径一：创造 ───────────────── */
 const DESIGN_SLIDERS = [

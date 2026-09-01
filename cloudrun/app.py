@@ -1241,7 +1241,7 @@ def voice_preview():
         return jsonify({"error": str(e)[:300]}), 502
 
 
-DESIGN_CLOSED = True   # 音色设计临时下线：MiniMax 通道停用，待配置 DASHSCOPE_API_KEY 走 CosyVoice 后恢复（前端 DESIGN_CLOSED 同步改）
+DESIGN_CLOSED = False   # 音色设计开关：True=下线（停 MiniMax），False=开放。CosyVoice key 已配置，当前走 CosyVoice 免费设计
 
 
 @APP.get("/voices/design/info")
