@@ -592,6 +592,91 @@ def minimax_tts_bytes(text: str, voice_id: str) -> bytes:
     return bytes.fromhex(obj["data"]["audio"])
 
 
+# ---------- 阿里云百炼 CosyVoice（可选通道：设计免费 + 合成更便宜） ----------
+# 配置 DASHSCOPE_API_KEY 后启用；未配置时音色设计自动回落 MiniMax，现有逻辑零影响。
+# 设计接口：POST /services/audio/tts/customization（model=voice-enrollment, action=create_voice）
+# 合成接口：POST /services/audio/tts/SpeechSynthesizer（纯 HTTP，非流式返 output.audio.url）
+COSY_TARGET_MODEL = "cosyvoice-v3.5-plus"   # 设计音色的目标模型；voice_id 前缀即合成模型
+
+def cosy_enabled() -> bool:
+    return bool((os.environ.get("DASHSCOPE_API_KEY") or "").strip())
+
+
+def design_provider() -> str:
+    return "cosyvoice" if cosy_enabled() else "minimax"
+
+
+def cosy_base() -> str:
+    """默认工作空间走 dashscope 域名；配置了业务空间 ID 则走 maas 域名（仅北京地域）"""
+    ws = (os.environ.get("DASHSCOPE_WORKSPACE_ID") or "").strip()
+    if ws:
+        return f"https://{ws}.cn-beijing.maas.aliyuncs.com/api/v1"
+    return "https://dashscope.aliyuncs.com/api/v1"
+
+
+def cosy_design(prompt: str, preview_text: str):
+    """CosyVoice 声音设计（创建免费）。返回 (voice_id, preview_audio_b64)"""
+    body = {"model": "voice-enrollment",
+            "input": {"action": "create_voice", "target_model": COSY_TARGET_MODEL,
+                      "voice_prompt": prompt[:500], "preview_text": preview_text[:200],
+                      "prefix": "shengjuan", "language_hints": ["zh"]},
+            "parameters": {"sample_rate": 24000, "response_format": "wav"}}
+    r = requests.post(f"{cosy_base()}/services/audio/tts/customization",
+                      headers={"Authorization": f"Bearer {os.environ['DASHSCOPE_API_KEY']}",
+                               "Content-Type": "application/json"},
+                      json=body, timeout=90)
+    obj = r.json()
+    if r.status_code != 200 or obj.get("code"):
+        raise RuntimeError(f"CosyVoice 设计失败: {obj.get('message') or 'HTTP ' + str(r.status_code)}")
+    voice_id = (obj.get("output") or {}).get("voice_id")
+    if not voice_id:
+        raise RuntimeError("CosyVoice 设计接口未返回 voice_id")
+    bump("designs")
+    # 新音色可能仍在部署（DEPLOYING），预览统一走合成拿 mp3，失败重试一次
+    preview_b64 = None
+    for attempt in range(2):
+        try:
+            preview_b64 = base64.b64encode(cosy_tts_bytes(preview_text, voice_id)).decode("ascii")
+            break
+        except Exception as e:  # noqa: BLE001
+            if attempt == 0:
+                log(f"[cosy-design] 预览合成失败（音色可能部署中），4 秒后重试: {e}")
+                time.sleep(4)
+            else:
+                raise
+    return voice_id, preview_b64
+
+
+def cosy_tts_bytes(text: str, voice_id: str) -> bytes:
+    """CosyVoice 合成：模型名取自 voice_id 前缀（{model}-vd-{prefix}-{uid}）"""
+    model = voice_id.split("-vd-")[0] or COSY_TARGET_MODEL
+    body = {"model": model,
+            "input": {"text": text, "voice": voice_id, "format": "mp3",
+                      "sample_rate": 24000, "volume": 50, "rate": 1.0, "pitch": 1.0,
+                      "language_hints": ["zh"]}}
+    r = requests.post(f"{cosy_base()}/services/audio/tts/SpeechSynthesizer",
+                      headers={"Authorization": f"Bearer {os.environ['DASHSCOPE_API_KEY']}",
+                               "Content-Type": "application/json"},
+                      json=body, timeout=120)
+    obj = r.json()
+    if r.status_code != 200 or obj.get("code"):
+        raise RuntimeError(f"CosyVoice 合成失败: {obj.get('message') or 'HTTP ' + str(r.status_code)}")
+    url = ((obj.get("output") or {}).get("audio") or {}).get("url")
+    if not url:
+        raise RuntimeError("CosyVoice 合成未返回音频地址")
+    au = requests.get(url, timeout=60)
+    if au.status_code != 200:
+        raise RuntimeError(f"CosyVoice 音频下载失败 HTTP {au.status_code}")
+    return au.content
+
+
+def custom_tts_bytes(text: str, voice_id: str) -> bytes:
+    """自定义音色（设计类）合成分发：按 voice_id 前缀选厂商"""
+    if voice_id.startswith("cosyvoice"):
+        return cosy_tts_bytes(text, voice_id)
+    return minimax_tts_bytes(text, voice_id)
+
+
 # ---------- 音色设计缓存（按描述哈希，避免为同一句描述重复付设计费） ----------
 # MiniMax 音色设计按次计费（约 ¥21.6/个），同描述重复调用纯属浪费。
 # 缓存全局共享（跨用户），PG 不可用时优雅降级为不缓存，不阻塞主流程。
@@ -602,13 +687,14 @@ def design_cache_key(prompt: str) -> str:
     return hashlib.sha256(norm.encode("utf-8")).hexdigest()[:32]
 
 
-def design_cache_get(key: str):
-    """命中返回 voice_id，未命中或 PG 不可用返回 None"""
+def design_cache_get(key: str, provider: str):
+    """命中返回 voice_id（仅限当前通道的音色），未命中或 PG 不可用返回 None"""
     if not CB_SERVICE_KEY:
         return None
     try:
         r = _pg_request("GET", "voice_design_cache",
-                        params={"prompt_hash": f"eq.{key}", "select": "voice_id,use_count"})
+                        params={"prompt_hash": f"eq.{key}", "provider": f"eq.{provider}",
+                                "select": "voice_id,use_count"})
         if r.status_code != 200:
             return None
         rows = r.json()
@@ -625,13 +711,13 @@ def design_cache_get(key: str):
         return None
 
 
-def design_cache_put(key: str, prompt: str, voice_id: str) -> None:
+def design_cache_put(key: str, prompt: str, voice_id: str, provider: str = "minimax") -> None:
     if not CB_SERVICE_KEY:
         return
     try:
         _pg_request("POST", "voice_design_cache", upsert=True,
                     json_body={"prompt_hash": key, "prompt": prompt[:500],
-                               "voice_id": voice_id, "provider": "minimax"})
+                               "voice_id": voice_id, "provider": provider})
     except Exception as e:  # noqa: BLE001
         log(f"[design-cache] 写入失败，忽略: {e}")
 
@@ -1119,7 +1205,10 @@ def get_task(task_id: str):
 
 def synth_dispatch(text: str, speaker: str, out_path: Path, emotion=None, scale=4, speed=0,
                    dialect: str | None = None, loudness: int = 0):
-    """按音色类型分发：ttv-voice -> MiniMax；其余 -> 豆包（可带方言参数）"""
+    """按音色类型分发：cosyvoice-vd -> CosyVoice；ttv-voice -> MiniMax；其余 -> 豆包（可带方言参数）"""
+    if speaker.startswith("cosyvoice"):
+        out_path.write_bytes(cosy_tts_bytes(text, speaker))
+        return
     if speaker.startswith("ttv-voice"):
         out_path.write_bytes(minimax_tts_bytes(text, speaker))
         return
@@ -1152,6 +1241,17 @@ def voice_preview():
         return jsonify({"error": str(e)[:300]}), 502
 
 
+@APP.get("/voices/design/info")
+def voice_design_info():
+    """设计通道与费用提示，供前端确认弹窗动态展示"""
+    provider = design_provider()
+    if provider == "cosyvoice":
+        return jsonify({"provider": provider, "free": True,
+                        "fee_text": "当前通道：阿里云 CosyVoice，<b>音色设计免费</b>（合成约 ¥1.5/万字符，为 MiniMax 的 1/3）。"})
+    return jsonify({"provider": provider, "free": False,
+                    "fee_text": "音色设计按次计费，本次将产生约 <b>¥21.6</b> 费用。"})
+
+
 @APP.post("/voices/design")
 def voice_design():
     data = request.get_json(force=True, silent=True) or {}
@@ -1159,23 +1259,28 @@ def voice_design():
     if not prompt:
         return jsonify({"error": "prompt required"}), 400
     preview = "你好，我是由声卷为你量身定制的声音，很高兴认识你，希望你喜欢我讲的故事。"
+    provider = design_provider()
     ckey = design_cache_key(prompt)
-    cached_id = design_cache_get(ckey)
+    cached_id = design_cache_get(ckey, provider)
     if cached_id:
         log(f"[design] 命中缓存 {ckey} -> {cached_id}，不重复收取设计费")
         try:
-            preview_b64 = base64.b64encode(minimax_tts_bytes(preview, cached_id)).decode("ascii")
+            preview_b64 = base64.b64encode(custom_tts_bytes(preview, cached_id)).decode("ascii")
         except Exception as e:  # noqa: BLE001
             return jsonify({"error": str(e)[:300]}), 502
         return jsonify({"voice_id": cached_id, "preview_base64": preview_b64,
-                        "cached": True,
+                        "cached": True, "provider": provider,
                         "note": "已复用相同描述的历史音色，本次不产生设计费"})
     try:
-        voice_id, preview_b64 = minimax_design(prompt, preview)
-        design_cache_put(ckey, prompt, voice_id)
+        if provider == "cosyvoice":
+            voice_id, preview_b64 = cosy_design(prompt, preview)
+            note = "CosyVoice 通道：音色设计免费，相同描述后续自动复用"
+        else:
+            voice_id, preview_b64 = minimax_design(prompt, preview)
+            note = "设计费已在本次试听合成时收取（约 ¥21.6），相同描述后续将自动复用"
+        design_cache_put(ckey, prompt, voice_id, provider)
         return jsonify({"voice_id": voice_id, "preview_base64": preview_b64,
-                        "cached": False,
-                        "note": "设计费已在本次试听合成时收取（约 ¥21.6），相同描述后续将自动复用"})
+                        "cached": False, "provider": provider, "note": note})
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)[:300]}), 502
 

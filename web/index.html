@@ -2065,6 +2065,8 @@ function openDesignPanel() {
   refresh();
 
   const btn = $("designGo"), st = $("designStatus");
+  /* 设计通道信息（费用提示用）：面板打开时即取，点确认时基本已返回 */
+  const designInfoP = fetch(API + "/voices/design/info").then(r => r.json()).catch(() => null);
 
   const runDesign = async () => {
     btn.disabled = true;
@@ -2084,7 +2086,7 @@ function openDesignPanel() {
       saveCustomVoice({
         id: obj.voice_id,
         name: designName,
-        tag: obj.cached ? "设计音色 · 复用" : "MiniMax 设计"
+        tag: obj.cached ? "设计音色 · 复用" : (obj.provider === "cosyvoice" ? "CosyVoice 设计" : "MiniMax 设计")
       });
       narrator = obj.voice_id;
       renderVoices();
@@ -2092,14 +2094,16 @@ function openDesignPanel() {
       setTimeout(() => { closeModal(); }, 1600);
     } catch (e) {
       btn.disabled = false;
-      st.innerHTML = `<div class="m-error">生成失败：${escapeHtml(e.message)}<br>请稍后重试；若持续失败请检查 MiniMax 服务余额。</div>`;
+      st.innerHTML = `<div class="m-error">生成失败：${escapeHtml(e.message)}<br>请稍后重试；若持续失败请检查音色服务配置与余额。</div>`;
     }
   };
 
-  btn.onclick = () => {
+  btn.onclick = async () => {
     btn.disabled = true;
+    const info = await designInfoP;
+    const feeText = (info && info.fee_text) || "音色设计按次计费，本次将产生约 <b>¥21.6</b> 费用。";
     st.innerHTML = `<div style="padding:12px 14px;border-radius:8px;background:var(--paper-sunken);border:1px solid var(--line);font-size:0.85rem;line-height:1.7">
-      音色设计按次计费，本次将产生约 <b>¥21.6</b> 费用。
+      ${feeText}
       <div style="color:var(--ink-soft);font-size:0.8rem;margin-top:2px">相同描述会自动复用历史音色，不重复收费。</div>
       <div style="display:flex;gap:8px;margin-top:10px">
         <button class="m-btn ghost" id="designCancel" style="flex:1">取消</button>
