@@ -265,6 +265,12 @@
    - **终案**：「生成有声书」按钮从右对齐小块改**通栏全宽**（width:100%，与编辑器左右边线严格对齐），padding 13→16px、字号 0.95→1rem、字距 0.2→0.34em（text-indent 补偿居中）、圆角 6→8px，hover 增加焦糖色投影；640px 断点的临时覆盖删除。空旷带被横幅按钮横向撑起，与编辑器形成上下呼应的两个同宽块。
    - **实测**（1500×950，填入示例文本）：按钮 868×53 与编辑器 868 宽完全对齐 ✅，启用态正常。
 
+11. **书架下载按钮（双页复用，浏览器 E2E 16/16 全绿）**（前端 index.html + story.html 已上线）：
+   - **后端零改动**：`GET /me/audiobooks/<id>/audio` 本就不鉴权（16 位随机 id）且支持流式，下载纯前端 fetch → blob → `a[download]`。
+   - **实现**：两页各放一份同名 `downloadBook(id, title, btn)`（无共享 JS 文件，单 HTML 架构约定）——ReadableStream 读取按 Content-Length 算百分比，状态机 ⤓ → xx% → ✓（2s 回弹），失败 alert（index）/ toast（story）+ 回退；文件名 `{书名}.mp3`（非法字符 sanitize + 截断 40 字）；`_dlBusy` Set 防重复点击。index 侧 `.sc-actions` 纵向列 play/del 之间插 `⤓`（34px 圆形描边，%文字缩至 .66rem，done 态绿色）；story 侧「▶ 收听」旁加「⤓ 下载」次级描边 pill（min-width 78px 防文字撑跳）。**坑**：story 原绑定 `querySelectorAll(".si-btn")` 会把新按钮也绑成播放——收听按钮改 `.si-btn.play` 精确绑定。
+   - **E2E**（playwright 直驱 + sqAuth 注入登录态）：双页 16/16 全绿——三键/两键渲染、点击触发下载、suggestedFilename=《E2E下载测试书》.mp3、300000 字节完整落盘、中间态实测捕捉 68%、完成态 ✓、2s 回弹、无页面 JS 错误。测试数据：PG 直插 `user_audiobooks`（`repeat('SUQz',100000)` 解码为 ID3 头 mp3 字节，300KB 够触发百分比），验证后已删。
+   - 验证截图：`outputs/书架下载验证_工作台_09-01.png`、`outputs/书架下载验证_睡前故事_09-01.png`。
+
 ### 遗留/建议（09-01 新增）
 
 - ~~TTS 合成不可用~~ 已排除：系测试误用非项目音色，项目内置 uranus 系音色全部正常；TTS_RESOURCE env 口子保留备用。

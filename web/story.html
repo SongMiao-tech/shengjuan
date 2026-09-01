@@ -249,6 +249,12 @@
     padding: 8px 13px; font-size: .78rem; font-weight: 600; cursor: pointer; white-space: nowrap;
   }
   .si-btn.del { background: transparent; border: 1px solid var(--line); color: var(--ink-faint); padding: 8px 10px; }
+  .si-btn.dl {
+    background: #fff; border: 1px solid var(--line); color: var(--ink-soft);
+    min-width: 78px; text-align: center; transition: border-color .15s, color .15s;
+  }
+  .si-btn.dl:hover { border-color: var(--accent); color: var(--accent-deep); }
+  .si-btn.dl.done { border-color: #16a34a; color: #16a34a; }
   .si-btn:disabled { opacity: .5; }
   .hist-item {
     background: var(--card); border: 1px solid var(--line); border-radius: 10px;
@@ -1937,13 +1943,61 @@ async function loadShelf() {
           <div class="si-title">${escapeHtml(b.title)}</div>
           <div class="si-meta">${fmtTime((b.dur_s || 0))} · ${listened} · ${d}</div>
         </div>
-        <button class="si-btn" data-id="${b.id}" data-title="${escapeHtml(b.title)}">▶ 收听</button>
+        <button class="si-btn play" data-id="${b.id}" data-title="${escapeHtml(b.title)}">▶ 收听</button>
+        <button class="si-btn dl" data-id="${b.id}" data-title="${escapeHtml(b.title)}" title="下载 MP3">⤓ 下载</button>
       </div>`;
     }).join("");
-    box.querySelectorAll(".si-btn").forEach(btn => {
+    box.querySelectorAll(".si-btn.play").forEach(btn => {
       btn.onclick = () => playShelfBook(btn.dataset.id, btn.dataset.title, btn);
     });
+    box.querySelectorAll(".si-btn.dl").forEach(btn => {
+      btn.onclick = () => downloadBook(btn.dataset.id, btn.dataset.title, btn);
+    });
   } catch (e) { box.innerHTML = `<div class="empty">加载失败：${escapeHtml(String(e).slice(0, 60))}</div>`; }
+}
+
+/* 书架下载：⤓ 下载 → 百分比 → ✓ 已下载（2s 后回弹）；index.html 有同名同逻辑副本 */
+const _dlBusy = new Set();
+async function downloadBook(id, title, btn) {
+  if (_dlBusy.has(id)) return;
+  _dlBusy.add(id);
+  const old = btn.textContent;
+  btn.disabled = true;
+  try {
+    /* 音频端点不鉴权（16 位随机 id），直接流式拉取并显示进度 */
+    const r = await fetch(`${API}/me/audiobooks/${id}/audio`);
+    if (!r.ok) throw new Error(r.status === 404 ? "音频不存在，可能已被删除" : "HTTP " + r.status);
+    const total = +r.headers.get("Content-Length") || 0;
+    let blob;
+    if (r.body && r.body.getReader && total) {
+      const reader = r.body.getReader();
+      const chunks = []; let got = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value); got += value.length;
+        btn.textContent = Math.min(99, Math.round(got / total * 100)) + "%";
+      }
+      blob = new Blob(chunks, { type: "audio/mpeg" });
+    } else {
+      btn.textContent = "下载中…";
+      blob = await r.blob();
+    }
+    const safe = (title || "有声书").replace(/[\\/:*?"<>|\r\n]+/g, " ").trim().slice(0, 40) || "有声书";
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = safe + ".mp3";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    btn.textContent = "✓ 已下载";
+    btn.classList.add("done");
+    setTimeout(() => {
+      btn.textContent = old; btn.classList.remove("done"); btn.disabled = false; _dlBusy.delete(id);
+    }, 2000);
+  } catch (e) {
+    toast("下载失败：" + String(e.message || e).slice(0, 60), 4000);
+    btn.textContent = old; btn.disabled = false; _dlBusy.delete(id);
+  }
 }
 
 /* 收听工作台保存的成品有声书（直接播流式音频，进度与工作台共享） */

@@ -491,6 +491,8 @@
     display: flex; align-items: center; justify-content: center; transition: all .15s;
   }
   .shelf-card .sc-btn:hover { border-color: var(--accent); color: var(--accent-deep); }
+  .shelf-card .sc-btn.dl { font-size: .66rem; letter-spacing: -.02em; }
+  .shelf-card .sc-btn.dl.done { border-color: #16a34a; color: #16a34a; }
   .shelf-card .sc-btn.del:hover { border-color: #dc2626; color: #dc2626; }
   .shelf-empty {
     grid-column: 1 / -1; text-align: center; padding: 48px 20px;
@@ -1981,12 +1983,16 @@ async function loadWorkbenchShelf() {
         </div>
         <div class="sc-actions">
           <button class="sc-btn play" data-id="${b.id}" title="播放/暂停">▶</button>
+          <button class="sc-btn dl" data-id="${b.id}" data-title="${escapeHtml(b.title)}" title="下载 MP3">⤓</button>
           <button class="sc-btn del" data-id="${b.id}" title="删除">✕</button>
         </div>
       </div>`;
     }).join("");
     grid.querySelectorAll(".sc-btn.play").forEach(btn => {
       btn.onclick = () => toggleShelfPlay(btn.dataset.id, btn);
+    });
+    grid.querySelectorAll(".sc-btn.dl").forEach(btn => {
+      btn.onclick = () => downloadBook(btn.dataset.id, btn.dataset.title, btn);
     });
     grid.querySelectorAll(".sc-btn.del").forEach(btn => {
       btn.onclick = async () => {
@@ -2003,6 +2009,49 @@ async function loadWorkbenchShelf() {
     });
   } catch (e) {
     grid.innerHTML = `<div class="shelf-empty">加载失败：${escapeHtml(String(e).slice(0, 60))}<br>请检查网络后点「↻ 刷新」重试</div>`;
+  }
+}
+/* 书架下载：⤓ → 百分比 → ✓（2s 后回弹）；story.html 有同名同逻辑副本 */
+const _dlBusy = new Set();
+async function downloadBook(id, title, btn) {
+  if (_dlBusy.has(id)) return;
+  _dlBusy.add(id);
+  const old = btn.textContent;
+  btn.disabled = true;
+  try {
+    /* 音频端点不鉴权（16 位随机 id），直接流式拉取并显示进度 */
+    const r = await fetch(`${API}/me/audiobooks/${id}/audio`);
+    if (!r.ok) throw new Error(r.status === 404 ? "音频不存在，可能已被删除" : "HTTP " + r.status);
+    const total = +r.headers.get("Content-Length") || 0;
+    let blob;
+    if (r.body && r.body.getReader && total) {
+      const reader = r.body.getReader();
+      const chunks = []; let got = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value); got += value.length;
+        btn.textContent = Math.min(99, Math.round(got / total * 100)) + "%";
+      }
+      blob = new Blob(chunks, { type: "audio/mpeg" });
+    } else {
+      btn.textContent = "…";
+      blob = await r.blob();
+    }
+    const safe = (title || "有声书").replace(/[\\/:*?"<>|\r\n]+/g, " ").trim().slice(0, 40) || "有声书";
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = safe + ".mp3";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    btn.textContent = "✓";
+    btn.classList.add("done");
+    setTimeout(() => {
+      btn.textContent = old; btn.classList.remove("done"); btn.disabled = false; _dlBusy.delete(id);
+    }, 2000);
+  } catch (e) {
+    alert("下载失败：" + String(e.message || e).slice(0, 60));
+    btn.textContent = old; btn.disabled = false; _dlBusy.delete(id);
   }
 }
 function stopShelfAudio() {
