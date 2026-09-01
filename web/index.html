@@ -1535,6 +1535,7 @@ $("goBtn").onclick = async () => {
         const t = await fetch(`${API}/tasks/${v.taskId}`).then(r => r.json());
         if (t.status === "done") {
           v.done = true; v.result = t; v.stage = "";
+          if (t.note) v.note = t.note;
           v.blobUrl = await fetchAudioBytes(v.taskId);
         } else if (t.status === "failed") {
           v.done = true; v.error = t.error || "生成失败"; v.stage = "";
@@ -1559,10 +1560,14 @@ $("goBtn").onclick = async () => {
   const okVersions = versionList.filter(v => v.result);
   if (!okVersions.length) { showError(versionList[0].error || "全部版本生成失败"); return; }
   const failNote = versionList.filter(v => v.error).map(v => `${v.label}（${(v.error || "").slice(0, 40)}）`).join("、");
+  const okNotes = versionList.filter(v => v.note).map(v => `${v.label}：${v.note}`).join("；");
   switchVersion(versionList.indexOf(okVersions[0]), true);
   $("goBtn").disabled = false;
   if (failNote) {
     $("noticeBox").textContent = `部分版本失败：${failNote}`;
+    $("noticeBox").classList.add("on");
+  } else if (okNotes) {
+    $("noticeBox").textContent = okNotes;
     $("noticeBox").classList.add("on");
   }
 };
@@ -1628,6 +1633,7 @@ async function poll(id) {
       lastTaskId = id;
       currentVersion = -1;
       versionList = [];
+      if (t.note) { $("noticeBox").textContent = t.note; $("noticeBox").classList.add("on"); }
       await fetchAudio(id);
       render(t);
       $("goBtn").disabled = false;

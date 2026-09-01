@@ -424,15 +424,31 @@ def analyze_long(text: str):
         out.extend(analyze(c))
     return out
 
-def translate_segments(segments: list) -> list:
-    """GLM 逐段翻译为英文；失败时返回 [None]*n（英语版该段降级保留中文）"""
-    texts = [s["text"] for s in segments]
+TRANS_BATCH_SEGMENTS = 4    # 每批最多段落数
+TRANS_BATCH_CHARS = 700     # 每批最多总字数（控制 GLM 单次输出长度，防超时/JSON 截断）
+
+def _batch_texts(texts: list) -> list:
+    """把段落列表按批分组：批内 <= TRANS_BATCH_SEGMENTS 段且总字数 <= TRANS_BATCH_CHARS。
+    批越小 GLM 输出 JSON 越短越稳，批间独立降级互不影响。"""
+    batches, cur, cur_chars = [], [], 0
+    for t in texts:
+        if cur and (len(cur) >= TRANS_BATCH_SEGMENTS or cur_chars + len(t) > TRANS_BATCH_CHARS):
+            batches.append(cur)
+            cur, cur_chars = [], 0
+        cur.append(t)
+        cur_chars += len(t)
+    if cur:
+        batches.append(cur)
+    return batches
+
+def _translate_batch(texts: list) -> list:
+    """单批翻译：成功返回英文列表；任何失败返回 [None]*n（该批降级保留中文）"""
     body = {"messages": [{"role": "user", "content": TRANS_PROMPT.replace("__TEXT__", json.dumps(texts, ensure_ascii=False))}],
             "temperature": 0.3}
     try:
         content = _glm_chat(body)
     except Exception as e:  # noqa: BLE001
-        log(f"[translate] 翻译失败（全模型链），英语版该段降级保留中文: {str(e)[:100]}")
+        log(f"[translate] 批翻译失败（全模型链），{len(texts)} 段降级保留中文: {str(e)[:100]}")
         return [None] * len(texts)
     m = _re.search(r"\[.*\]", content, _re.DOTALL)
     if not m:
@@ -444,6 +460,24 @@ def translate_segments(segments: list) -> list:
     if not isinstance(en, list) or len(en) != len(texts):
         return [None] * len(texts)
     return [str(x).strip() if x else None for x in en]
+
+def translate_segments(segments: list) -> tuple:
+    """GLM 分批翻译为英文（每批 <=4 段且 <=700 字）。
+    批间独立降级——单批失败只影响该批段落，不再整篇降级。
+    返回 (en_list, failed_n)：failed_n 为翻译失败降级保留中文的段落数（供任务状态透出）。"""
+    texts = [s["text"] for s in segments]
+    en_list, idx, failed = [None] * len(texts), 0, 0
+    for batch in _batch_texts(texts):
+        res = _translate_batch(batch)
+        for j, en in enumerate(res):
+            if en:
+                en_list[idx + j] = en
+            else:
+                failed += 1
+        idx += len(batch)
+    if failed:
+        log(f"[translate] 共 {failed}/{len(texts)} 段翻译失败，英语版降级保留中文")
+    return en_list, failed
 
 
 # ---------- 豆包 TTS ----------
@@ -598,9 +632,9 @@ def run_pipeline(task_id: str, text: str, narrator: str, use_bgm: bool, dialect:
                 seg["speed"] = min(30, seg["speed"] + 10)
             pause = 0.45
             force_bgm = "tense.mp3"
-        elif style == "english":                  # 英语版：整篇替换为英文朗读（个别段翻译失败降级保留中文）
+        elif style == "english":                  # 英语版：整篇替换为英文朗读（分批翻译，失败段降级保留中文）
             t["stage"] = "translating"
-            en_list = translate_segments(segments)
+            en_list, failed_n = translate_segments(segments)
             inter = []
             for seg, en in zip(segments, en_list):
                 if en:
@@ -610,6 +644,9 @@ def run_pipeline(task_id: str, text: str, narrator: str, use_bgm: bool, dialect:
                 else:
                     inter.append(seg)
             segments = inter
+            if failed_n:                          # 降级情况透出到任务状态，前端可见
+                t["note"] = f"有 {failed_n} 段英文翻译失败，这些段落将保留中文朗读"
+                log(f"[{task_id}] {t['note']}")
 
         t["segments"] = segments
         log(f"[{task_id}] {len(segments)} 段 dialect={dialect} style={style}")
