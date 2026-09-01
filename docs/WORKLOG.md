@@ -229,11 +229,14 @@
    - 部署细节：静态托管 story.html/index.html 上传后 curl 特征值验证；后端 048 构建完成后经灰度自动全量（FlowRatio 0→100），首次 E2E 跑在旧实例上结果无效——**灰度未完成前不要做接口验证**。
 
 2. **英语版多段落翻译整篇降级修复**（commit b85cac1，前端 index.html + 后端 audiobook-api-050 已部署）：用户反馈多段落文本用「英语」生成结果全中文。根因：translate_segments 把全部段落文本塞进单次 GLM 调用，输出过长超时/JSON 截断 → [None]*n 静默降级。修复：分批翻译（每批 ≤4 段且 ≤700 字，_batch_texts 分组），**批间独立降级**——单批失败只影响该批段落；翻译失败段数写入任务状态 note 字段，前端 poll()/多版本循环在 noticeBox 展示「有 N 段英文翻译失败，这些段落将保留中文朗读」。E2E：9 段西游记对话文本实测 en=5/zh=4（不再整篇降级），note 正确透出。
-3. **火山 TTS 全音色 55000000 排查（账号侧，未解决）**：修复验证中发现 TTS 合成全挂——中英文所有音色报 `code=55000000 resource ID is mismatched with speaker related resource`（今晨 048 时代 E2E 尚正常）。对照官方错误码表 + 社区案例：seed-tts-2.0 实例不含 bigtts 音色目录、free 额度用尽也会引发此错。实测 `volc.service_type.291` / `volc.service_type.10029` 均 `45000030 requested resource not granted`（账号未开通）；代码已恢复走 seed-tts-2.0，pick_resource 加 TTS_RESOURCE env 覆盖口子（commit b648435，audiobook-api-052）。**待用户到火山引擎控制台确认：语音合成服务免费额度是否用尽 / 是否需开通正式版**。
+3. **英语版对话密集文本翻译必挂：JSON 双引号根因 + 三层防御**（commit 4e333a6，audiobook-api-057 已部署）：多段落 E2E 首验 en=5/zh=4，再验却 7/7、9/9 全挂且 TTS 一次全音色 55000000——排查后确认两件独立的事：
+   - **TTS 55000000 是误报虚惊**：测试脚本随手用了非项目音色 `zh_male_rongsheng`（不在 seed-tts-2.0 音色目录）；项目内置音色全为 uranus 系实测全部正常，克隆音色（seed-icl-2.0）亦正常。顺带修正认知：seed-tts-2.0 只认 `*_uranus_bigtts`（2.0），moon 系属 1.0 要走 seed-tts-1.0。pick_resource 保留 TTS_RESOURCE env 覆盖口子。
+   - **翻译全挂真根因：GLM 在 JSON 字符串里输出未转义双引号**（如 `"Sandy said, "Second brother..."`），json.loads 必炸；重试依赖 GLM 碰巧改用单引号，概率性通过——对话密集文本（引号多）几乎必踩。临时诊断端点（/debug/translate，跑真实管线函数+逐批原始响应）抓到实锤。修复三层：①TRANS_PROMPT 强约束「JSON 内一律单引号」；②批 JSON 两连败后**逐段纯文本翻译兜底**（不经 JSON，无转义问题）；③单段输出长度合理性校验防幻觉。顺带修英文音色预览：豆包英文音色不吃纯中文输入（静默无音频），预览文案按音色前缀切英文。
+   - **最终 E2E**：9 段西游记对话文本 9/9 段 en=True 纯英文朗读，无降级，done 57.3s，note 不再出现。
 
 ### 遗留/建议（09-01 新增）
 
-- 🔴 TTS 合成当前不可用（账号资源侧）：去火山引擎控制台 → 语音技术 → 确认免费额度/开通状态；若需换 resource id，改 EnvParams 里 TTS_RESOURCE 即可，无需改代码。
+- ~~TTS 合成不可用~~ 已排除：系测试误用非项目音色，项目内置 uranus 系音色全部正常；TTS_RESOURCE env 口子保留备用。
 
 ---
 
