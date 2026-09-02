@@ -2411,11 +2411,13 @@ function openDesignPanel() {
   };
 }
 
+/* previewAudio 复用 L1295 的列表试听通道：播新的前停旧的，全局互斥不叠加 */
 function playPreview(b64) {
   if (!b64) return; /* 服务端降级：设计成功但试听合成失败时为空，直接跳过播放 */
+  if (previewAudio) { previewAudio.pause(); previewAudio = null; }
   const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-  new Audio(URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }))).play()
-    .catch(() => {});
+  previewAudio = new Audio(URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" })));
+  previewAudio.play().catch(() => {});
 }
 
 /* ── 路径三：智能生成（一句话描述 → AI 推导音色设定 → 试听 → 命名保存） ───────────── */
@@ -2473,11 +2475,13 @@ function openSmartPanel() {
         <div style="font-size:0.82rem;color:var(--ink-soft);margin:10px 0 6px;">试听满意吗？起个名字保存（${userToken ? "保存后各设备同步" : "未登录，将仅保存在本机"}）：</div>
         <input class="name-input" id="smartName" maxlength="16" value="${escapeHtml(obj.name_suggestion || "")}" placeholder="给这个声音起个名字" spellcheck="false">
         <div style="display:flex;gap:8px;margin-top:8px;">
+          ${obj.preview_base64 ? `<button class="m-btn ghost" id="smartReplay" style="flex:1">▶ 再听一次</button>` : ""}
           <button class="m-btn primary" id="smartSave" style="flex:1">保存到我的音色库</button>
         </div>
         <div class="rec-status" id="smartSaveStatus"></div>`;
       if (obj.preview_base64) {
         playPreview(obj.preview_base64);
+        $("smartReplay").onclick = () => playPreview(obj.preview_base64);
         st.innerHTML = obj.cached
           ? `<span style="color:#15803d">命中历史音色，正在播放试听…（本次未产生设计费）</span>`
           : `<span style="color:#15803d">生成成功！正在播放试听…</span>`;
