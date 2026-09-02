@@ -1,0 +1,27 @@
+<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="1280" height="720" fill="#FFFFFF"/>
+  <text x="80" y="96" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A8A8A">HIGHLIGHT 01</text>
+  <text x="1200" y="96" text-anchor="end" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A8A8A">04 / 08</text>
+  <rect x="80" y="132" width="56" height="6" fill="#000000"/>
+  <text x="80" y="240" font-family="微软雅黑, Arial, sans-serif" font-size="48" font-weight="bold" fill="#000000">拖哪一段，只重算那一段</text>
+  <text x="80" y="316" font-family="微软雅黑, Arial, sans-serif" font-size="24" fill="#333333">大模型把全文切段，每段打上情绪标签、强度和角色</text>
+  <text x="80" y="360" font-family="微软雅黑, Arial, sans-serif" font-size="24" fill="#333333">前端画成一条能拖的曲线</text>
+  <line x1="700" y1="240" x2="700" y2="560" stroke="#E5E5E5" stroke-width="1"/>
+  <line x1="740" y1="512" x2="1200" y2="512" stroke="#E5E5E5" stroke-width="1"/>
+  <line x1="740" y1="384" x2="1200" y2="384" stroke="#E5E5E5" stroke-width="1" stroke-dasharray="4 6"/>
+  <line x1="740" y1="256" x2="1200" y2="256" stroke="#E5E5E5" stroke-width="1"/>
+  <polyline points="740,470 816,400 892,430 968,330 1044,360 1120,290 1196,310" fill="none" stroke="#000000" stroke-width="3"/>
+  <circle cx="816" cy="400" r="6" fill="#000000"/>
+  <circle cx="892" cy="430" r="6" fill="#000000"/>
+  <circle cx="1044" cy="360" r="6" fill="#000000"/>
+  <circle cx="1120" cy="290" r="6" fill="#000000"/>
+  <circle cx="968" cy="330" r="12" fill="none" stroke="#000000" stroke-width="3"/>
+  <text x="968" y="240" text-anchor="middle" font-family="微软雅黑, Arial, sans-serif" font-size="18" fill="#000000">拖这个点</text>
+  <line x1="968" y1="252" x2="968" y2="310" stroke="#000000" stroke-width="1"/>
+  <text x="740" y="552" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#8A8A8A">段落序号</text>
+  <line x1="80" y1="440" x2="640" y2="440" stroke="#E5E5E5" stroke-width="1"/>
+  <text x="80" y="500" font-family="微软雅黑, Arial, sans-serif" font-size="20" fill="#8A8A8A">整篇重合成</text>
+  <text x="80" y="576" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="#8A8A8A">30s</text>
+  <text x="360" y="500" font-family="微软雅黑, Arial, sans-serif" font-size="20" fill="#000000">增量重合成</text>
+  <text x="360" y="576" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="#E63946">1s</text>
+</svg>

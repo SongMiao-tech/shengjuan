@@ -1,0 +1,35 @@
+<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="1280" height="720" fill="#FFFFFF"/>
+  <text x="80" y="96" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A8A8A">STACK</text>
+  <text x="1200" y="96" text-anchor="end" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A8A8A">03 / 08</text>
+  <rect x="80" y="132" width="56" height="6" fill="#000000"/>
+  <text x="80" y="240" font-family="微软雅黑, Arial, sans-serif" font-size="48" font-weight="bold" fill="#000000">没独显，所以全走云 API</text>
+  <text x="80" y="316" font-family="微软雅黑, Arial, sans-serif" font-size="24" fill="#333333">本机没独显</text>
+  <line x1="248" y1="308" x2="320" y2="308" stroke="#000000" stroke-width="2"/>
+  <path d="M 320 302 L 332 308 L 320 314" fill="none" stroke="#000000" stroke-width="2"/>
+  <text x="352" y="316" font-family="Arial, sans-serif" font-size="30" font-weight="bold" fill="#E63946">RTF 18.4</text>
+  <line x1="512" y1="308" x2="584" y2="308" stroke="#000000" stroke-width="2"/>
+  <path d="M 584 302 L 596 308 L 584 314" fill="none" stroke="#000000" stroke-width="2"/>
+  <text x="616" y="316" font-family="微软雅黑, Arial, sans-serif" font-size="24" fill="#333333">一小时有声书要等十八小时</text>
+  <line x1="80" y1="372" x2="1200" y2="372" stroke="#E5E5E5" stroke-width="1"/>
+  <rect x="80" y="408" width="262" height="216" fill="#F1F1F1"/>
+  <text x="104" y="448" font-family="Arial, sans-serif" font-size="12" letter-spacing="2" fill="#8A8A8A">LLM</text>
+  <text x="104" y="488" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="#000000">GLM-4-Flash</text>
+  <text x="104" y="532" font-family="微软雅黑, Arial, sans-serif" font-size="18" fill="#333333">免费</text>
+  <text x="104" y="562" font-family="微软雅黑, Arial, sans-serif" font-size="18" fill="#333333">输出结构化 JSON</text>
+  <rect x="366" y="408" width="262" height="216" fill="#F1F1F1"/>
+  <text x="390" y="448" font-family="Arial, sans-serif" font-size="12" letter-spacing="2" fill="#8A8A8A">TTS</text>
+  <text x="390" y="488" font-family="微软雅黑, Arial, sans-serif" font-size="22" font-weight="bold" fill="#000000">火山豆包 2.0</text>
+  <text x="390" y="532" font-family="微软雅黑, Arial, sans-serif" font-size="18" fill="#333333">能听懂情绪指令</text>
+  <text x="390" y="562" font-family="微软雅黑, Arial, sans-serif" font-size="18" fill="#333333">多角色、SSML</text>
+  <rect x="652" y="408" width="262" height="216" fill="#F1F1F1"/>
+  <text x="676" y="448" font-family="Arial, sans-serif" font-size="12" letter-spacing="2" fill="#8A8A8A">VOICE</text>
+  <text x="676" y="488" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="#000000">CosyVoice</text>
+  <text x="676" y="532" font-family="微软雅黑, Arial, sans-serif" font-size="18" fill="#333333">设计音色免费</text>
+  <text x="676" y="562" font-family="微软雅黑, Arial, sans-serif" font-size="18" fill="#333333">豆包复刻做克隆</text>
+  <rect x="938" y="408" width="262" height="216" fill="#F1F1F1"/>
+  <text x="962" y="448" font-family="Arial, sans-serif" font-size="12" letter-spacing="2" fill="#8A8A8A">BACKEND</text>
+  <text x="962" y="488" font-family="微软雅黑, Arial, sans-serif" font-size="22" font-weight="bold" fill="#000000">CloudBase + PG</text>
+  <text x="962" y="532" font-family="微软雅黑, Arial, sans-serif" font-size="18" fill="#333333">云托管容器</text>
+  <text x="962" y="562" font-family="微软雅黑, Arial, sans-serif" font-size="18" fill="#333333">前端两页静态托管</text>
+</svg>

@@ -1,0 +1,27 @@
+<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="1280" height="720" fill="#FFFFFF"/>
+  <text x="80" y="96" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A8A8A">HIGHLIGHT 03</text>
+  <text x="1200" y="96" text-anchor="end" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A8A8A">06 / 08</text>
+  <rect x="80" y="132" width="56" height="6" fill="#000000"/>
+  <text x="80" y="240" font-family="微软雅黑, Arial, sans-serif" font-size="44" font-weight="bold" fill="#000000">工作台做的书，睡前故事页立刻能听</text>
+  <text x="80" y="296" font-family="微软雅黑, Arial, sans-serif" font-size="22" fill="#333333">进度跨设备同步 · 音频一键下载 MP3</text>
+  <rect x="80" y="352" width="328" height="216" fill="#F1F1F1"/>
+  <text x="112" y="408" font-family="微软雅黑, Arial, sans-serif" font-size="20" font-weight="bold" fill="#000000">格林童话 · 小红帽</text>
+  <text x="112" y="456" font-family="Arial, sans-serif" font-size="18" fill="#8A8A8A">⤓ 下载</text>
+  <text x="112" y="504" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#8A8A8A">点了才开始</text>
+  <rect x="432" y="392" width="248" height="176" fill="#F1F1F1"/>
+  <text x="464" y="440" font-family="微软雅黑, Arial, sans-serif" font-size="20" font-weight="bold" fill="#000000">伊索寓言</text>
+  <text x="464" y="488" font-family="Arial, sans-serif" font-size="18" fill="#333333">62%</text>
+  <text x="464" y="528" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#8A8A8A">按 Content-Length 走</text>
+  <rect x="704" y="336" width="176" height="232" fill="#F1F1F1"/>
+  <text x="736" y="392" font-family="微软雅黑, Arial, sans-serif" font-size="20" font-weight="bold" fill="#000000">西游记</text>
+  <text x="736" y="440" font-family="Arial, sans-serif" font-size="18" fill="#333333">✓ 已下载</text>
+  <text x="736" y="516" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#8A8A8A">两秒后回弹</text>
+  <text x="80" y="632" font-family="微软雅黑, Arial, sans-serif" font-size="20" fill="#8A8A8A">按钮状态机：⤓ → 百分比 → ✓</text>
+  <rect x="944" y="264" width="176" height="352" fill="none" stroke="#000000" stroke-width="2"/>
+  <text x="1032" y="300" text-anchor="middle" font-family="微软雅黑, Arial, sans-serif" font-size="18" fill="#000000">手机</text>
+  <rect x="944" y="552" width="176" height="64" fill="#E63946"/>
+  <text x="1032" y="590" text-anchor="middle" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#FFFFFF">safe-area</text>
+  <text x="944" y="656" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#8A8A8A">播放栏被手势条切掉一半</text>
+  <text x="944" y="684" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#8A8A8A">真机截图才发现的</text>
+</svg>

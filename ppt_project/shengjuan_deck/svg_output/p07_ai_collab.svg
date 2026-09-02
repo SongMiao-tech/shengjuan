@@ -1,0 +1,48 @@
+<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="1280" height="720" fill="#FFFFFF"/>
+  <text x="80" y="96" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A8A8A">AI COLLABORATION</text>
+  <text x="1200" y="96" text-anchor="end" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A8A8A">07 / 08</text>
+  <rect x="80" y="132" width="56" height="6" fill="#000000"/>
+  <text x="80" y="196" font-family="微软雅黑, Arial, sans-serif" font-size="40" font-weight="bold" fill="#000000">AI 干两件事，我挑出三个错</text>
+  <text x="80" y="252" font-family="微软雅黑, Arial, sans-serif" font-size="20" font-weight="bold" fill="#000000">AI 只干两件事</text>
+  <text x="80" y="290" font-family="微软雅黑, Arial, sans-serif" font-size="18" font-weight="bold" fill="#000000">01 情感分析</text>
+  <text x="80" y="320" font-family="微软雅黑, Arial, sans-serif" font-size="17" fill="#333333">读全文输出分段 / 情绪 / 强度 / 重音词 JSON</text>
+  <text x="80" y="362" font-family="微软雅黑, Arial, sans-serif" font-size="18" font-weight="bold" fill="#000000">02 智能音色生成</text>
+  <text x="80" y="392" font-family="微软雅黑, Arial, sans-serif" font-size="17" fill="#333333">一句话扩写成配音导演式音色描述</text>
+  <line x1="80" y1="424" x2="600" y2="424" stroke="#E5E5E5" stroke-width="1"/>
+  <text x="80" y="464" font-family="微软雅黑, Arial, sans-serif" font-size="20" font-weight="bold" fill="#000000">我挑出的三个错</text>
+  <text x="80" y="500" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#000000">01 JSON 不合法：带引号对话塞进字符串，十次炸两三次</text>
+  <text x="80" y="528" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#8A8A8A">三层防御：强约束 / 整批重试 / 绕开 JSON 兜底</text>
+  <text x="80" y="564" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#000000">02 数字算错十倍：它回「四毛钱一万字」，实际 4.32 元</text>
+  <text x="80" y="600" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#000000">03 误判接口：说是账号问题，实为音色系别不匹配</text>
+  <text x="80" y="664" font-family="微软雅黑, Arial, sans-serif" font-size="20" font-weight="bold" fill="#E63946">AI 的输出我当草稿，不当答案</text>
+  <text x="80" y="700" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#8A8A8A">三轮改进点，没有一个是 AI 主动提的</text>
+  <line x1="640" y1="232" x2="640" y2="696" stroke="#E5E5E5" stroke-width="1"/>
+  <text x="680" y="252" font-family="微软雅黑, Arial, sans-serif" font-size="20" font-weight="bold" fill="#000000">边界</text>
+  <rect x="680" y="272" width="520" height="64" fill="#F1F1F1"/>
+  <text x="704" y="300" font-family="微软雅黑, Arial, sans-serif" font-size="16" font-weight="bold" fill="#000000">可交 AI</text>
+  <text x="704" y="326" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#333333">结构化标注、文案扩写 —— 错了容易看出来</text>
+  <rect x="680" y="348" width="520" height="64" fill="#FFFFFF" stroke="#000000" stroke-width="1"/>
+  <text x="704" y="376" font-family="微软雅黑, Arial, sans-serif" font-size="16" font-weight="bold" fill="#000000">必须人工</text>
+  <text x="704" y="402" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#333333">成本数字、接口契约、最终听感</text>
+  <text x="680" y="448" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#000000">硬线：故事正文禁止 AI 写，全用公版原文</text>
+  <line x1="680" y1="476" x2="1200" y2="476" stroke="#E5E5E5" stroke-width="1"/>
+  <text x="680" y="504" font-family="微软雅黑, Arial, sans-serif" font-size="18" font-weight="bold" fill="#000000">四步闭环</text>
+  <rect x="680" y="520" width="118" height="52" fill="#F1F1F1"/>
+  <text x="739" y="540" text-anchor="middle" font-family="微软雅黑, Arial, sans-serif" font-size="15" fill="#000000">我拆需求</text>
+  <text x="739" y="560" text-anchor="middle" font-family="微软雅黑, Arial, sans-serif" font-size="13" fill="#8A8A8A">人</text>
+  <rect x="814" y="520" width="118" height="52" fill="#000000"/>
+  <text x="873" y="540" text-anchor="middle" font-family="微软雅黑, Arial, sans-serif" font-size="15" fill="#FFFFFF">AI 出代码</text>
+  <text x="873" y="560" text-anchor="middle" font-family="微软雅黑, Arial, sans-serif" font-size="13" fill="#BDBDBD">AI</text>
+  <rect x="948" y="520" width="118" height="52" fill="#F1F1F1"/>
+  <text x="1007" y="540" text-anchor="middle" font-family="微软雅黑, Arial, sans-serif" font-size="15" fill="#000000">我评审</text>
+  <text x="1007" y="560" text-anchor="middle" font-family="微软雅黑, Arial, sans-serif" font-size="13" fill="#8A8A8A">人</text>
+  <rect x="1082" y="520" width="118" height="52" fill="#F1F1F1"/>
+  <text x="1141" y="540" text-anchor="middle" font-family="微软雅黑, Arial, sans-serif" font-size="15" fill="#000000">再迭代</text>
+  <text x="1141" y="560" text-anchor="middle" font-family="微软雅黑, Arial, sans-serif" font-size="13" fill="#8A8A8A">人</text>
+  <text x="680" y="600" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#333333">每版必须实测：十六条 Playwright 断言全绿才敢发</text>
+  <text x="680" y="636" font-family="微软雅黑, Arial, sans-serif" font-size="18" font-weight="bold" fill="#000000">迭代三轮</text>
+  <text x="680" y="666" font-family="微软雅黑, Arial, sans-serif" font-size="15" fill="#333333">01 跑通链路，能用但粗糙</text>
+  <text x="680" y="690" font-family="微软雅黑, Arial, sans-serif" font-size="15" fill="#333333">02 补移动端与下载（真机截图才发现）</text>
+  <text x="680" y="714" font-family="微软雅黑, Arial, sans-serif" font-size="15" fill="#333333">03 成本治理：换免费通道、上缓存</text>
+</svg>
