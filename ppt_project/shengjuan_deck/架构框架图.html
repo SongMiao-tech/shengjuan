@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>声卷 整体架构</title>
+<style>
+  /* 画布锁死 16:9，1280×720，自包含可直接截图嵌入 PPT */
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #F4F6F5;
+    font-family: "PingFang SC", "Microsoft YaHei", "微软雅黑", "Noto Sans SC", sans-serif;
+    color: #2E3238;
+    -webkit-font-smoothing: antialiased;
+  }
+  .stage {
+    width: 1280px;
+    height: 720px;
+    position: relative;
+    background: #F4F6F5;
+    margin: 0 auto;
+    overflow: hidden;
+  }
+  /* 顶部标题区 */
+  .title {
+    position: absolute;
+    left: 80px;
+    top: 32px;
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #2E3238;
+  }
+  .title .accent { color: #4C7A5A; }
+  .subtitle {
+    position: absolute;
+    left: 80px;
+    top: 70px;
+    font-size: 13px;
+    color: #78827D;
+    letter-spacing: 0.5px;
+  }
+  .topbar {
+    position: absolute;
+    left: 80px;
+    top: 96px;
+    width: 1120px;
+    height: 1px;
+    background: #C8D2CD;
+  }
+  /* 层卡通用 */
+  .layer {
+    position: absolute;
+    left: 80px;
+    width: 1120px;
+    background: #E8EEEA;
+    border-radius: 2px;
+  }
+  .layer::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 6px;
+    background: #4C7A5A;
+  }
+  .layer .layer-tag {
+    position: absolute;
+    left: 22px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #4C7A5A;
+    letter-spacing: 1.5px;
+  }
+  .layer .layer-head {
+    position: absolute;
+    left: 22px;
+    font-size: 17px;
+    font-weight: 700;
+    color: #2E3238;
+  }
+  .layer ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 14px;
+    color: #4A5568;
+    line-height: 1.85;
+  }
+  .layer ul li::before {
+    content: "•";
+    color: #4C7A5A;
+    margin-right: 8px;
+    font-weight: 700;
+  }
+  .layer .col {
+    position: absolute;
+    top: 0;
+  }
+  .layer .col ul li::before { color: #4C7A5A; }
+  /* L1 入口层 */
+  #L1 { top: 116px; height: 116px; }
+  #L1 .layer-tag { top: 14px; }
+  #L1 .layer-head { top: 34px; }
+  #L1 ul { position: absolute; left: 22px; top: 62px; }
+
+  /* 连接箭头 L1→L2 */
+  .arrow-v {
+    position: absolute;
+    left: 640px;
+    width: 2px;
+    background: #4C7A5A;
+  }
+  .arrow-tip {
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 9px solid #4C7A5A;
+  }
+  .conn-label {
+    position: absolute;
+    left: 540px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #8C5A46;
+    letter-spacing: 0.5px;
+  }
+  #conn12 { top: 240px; height: 22px; }
+  #conn12-tip { top: 262px; }
+  #conn12-label { top: 230px; }
+
+  /* L2 中枢层 */
+  #L2 { top: 276px; height: 162px; }
+  #L2 .layer-tag { top: 14px; }
+  #L2 .layer-head { top: 34px; }
+  #L2 .col-left { left: 22px; top: 66px; }
+  #L2 .col-right { left: 600px; top: 66px; }
+
+  /* L2→L3 三箭头 */
+  .arrow-v3 {
+    position: absolute;
+    width: 2px;
+    background: #4C7A5A;
+  }
+  .arrow-v3-tip {
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 9px solid #4C7A5A;
+  }
+  #arr-a { left: 257px; top: 446px; height: 22px; }
+  #arr-a-tip { left: 250px; top: 468px; }
+  #arr-b { left: 640px; top: 446px; height: 22px; }
+  #arr-b-tip { left: 633px; top: 468px; }
+  #arr-c { left: 1022px; top: 446px; height: 22px; }
+  #arr-c-tip { left: 1015px; top: 468px; }
+
+  /* L3 底座层三卡 */
+  .base {
+    position: absolute;
+    top: 480px;
+    width: 354px;
+    height: 200px;
+    background: #FFFFFF;
+    border: 1px solid #C8D2CD;
+    border-radius: 2px;
+  }
+  .base::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0;
+    width: 100%;
+    height: 6px;
+  }
+  .base.green::before { background: #4C7A5A; }
+  .base.ochre::before { background: #8C5A46; }
+  .base .base-tag {
+    position: absolute;
+    left: 18px;
+    top: 18px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+  }
+  .base.green .base-tag { color: #4C7A5A; }
+  .base.ochre .base-tag { color: #8C5A46; }
+  .base .base-title {
+    position: absolute;
+    left: 18px;
+    top: 40px;
+    font-size: 17px;
+    font-weight: 700;
+    color: #2E3238;
+  }
+  .base .base-title em {
+    font-style: normal;
+    color: #78827D;
+    font-weight: 500;
+    font-size: 13px;
+    margin-left: 6px;
+  }
+  .base ul {
+    position: absolute;
+    left: 18px;
+    top: 74px;
+    right: 14px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 13.5px;
+    color: #4A5568;
+    line-height: 1.9;
+  }
+  .base ul li::before {
+    content: "•";
+    margin-right: 8px;
+    font-weight: 700;
+  }
+  .base.green ul li::before { color: #4C7A5A; }
+  .base.ochre ul li::before { color: #8C5A46; }
+  .base .hl { color: #2E3238; font-weight: 600; }
+  .base .hl-r { color: #8C5A46; font-weight: 700; }
+  .base .hl-g { color: #4C7A5A; font-weight: 700; }
+  .base .tags {
+    position: absolute;
+    left: 18px;
+    top: 150px;
+    font-size: 12px;
+    color: #4A5568;
+  }
+  .base .tags .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    margin-right: 4px;
+    background: #E8EEEA;
+    color: #4C7A5A;
+    border-radius: 2px;
+    font-weight: 600;
+  }
+  #baseA { left: 80px; }
+  #baseB { left: 463px; }
+  #baseC { left: 846px; }
+
+  /* 底部图注 */
+  .caption {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 14px;
+    text-align: center;
+    font-size: 13px;
+    color: #78827D;
+    letter-spacing: 1px;
+  }
+  .caption .em { color: #4C7A5A; font-weight: 700; }
+</style>
+</head>
+<body>
+  <div class="stage">
+
+    <!-- 顶部标题 -->
+    <div class="title">声卷<span class="accent">·</span>整体架构</div>
+    <div class="subtitle">三层九模块：前端入口 → Flask 中枢调度 → 三大底座协同生成有声书</div>
+    <div class="topbar"></div>
+
+    <!-- L1 入口层 -->
+    <div class="layer" id="L1">
+      <div class="layer-tag">L1 · 入口层</div>
+      <div class="layer-head">前端（CloudBase 静态托管 · 双页单 HTML · 无构建）</div>
+      <ul>
+        <li>工作台 <span style="color:#2E3238;font-weight:600">index.html</span>　创作 + 书架</li>
+        <li>睡前故事 <span style="color:#2E3238;font-weight:600">story.html</span>　收听 + 跨页书架 + 迷你播放栏</li>
+        <li>共享 <span style="color:#2E3238;font-weight:600">localStorage</span>　sqAuth / 断网音色缓存</li>
+      </ul>
+    </div>
+
+    <!-- L1→L2 箭头 + 认证通道标签 -->
+    <div class="arrow-v" id="conn12"></div>
+    <div class="arrow-tip" id="conn12-tip"></div>
+    <div class="conn-label" id="conn12-label">HTTP(S)  +  Bearer token</div>
+
+    <!-- L2 中枢层 -->
+    <div class="layer" id="L2">
+      <div class="layer-tag">L2 · 中枢层</div>
+      <div class="layer-head">后端 audiobook-api（CloudBase 云托管容器 · Flask）</div>
+      <div class="col col-left">
+        <ul>
+          <li><span style="color:#2E3238;font-weight:600">/auth/*</span>　账号（自建 PBKDF2 + HMAC token）</li>
+          <li><span style="color:#2E3238;font-weight:600">/tasks</span>　生成编排（情感分析 → 分段 → 合成）</li>
+          <li><span style="color:#2E3238;font-weight:600">/voices/*</span>　音色三合一（设计 / 克隆 / 方言）</li>
+          <li><span style="color:#2E3238;font-weight:600">/me/voices</span>　音色库　·　<span style="color:#2E3238;font-weight:600">/me/audiobooks</span>　书架</li>
+        </ul>
+      </div>
+      <div class="col col-right">
+        <ul>
+          <li>任务队列 <span style="color:#2E3238;font-weight:600">asyncio</span>　·　分段缓存</li>
+          <li>用量监控　·　分析缓存</li>
+          <li>云内 <span style="color:#2E3238;font-weight:600">ffmpeg</span> 后期（BGM 混音 / 段落拼接）</li>
+          <li>家长中心　·　收听上报</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- L2→L3 三个箭头 -->
+    <div class="arrow-v3" id="arr-a"></div>
+    <div class="arrow-v3-tip" id="arr-a-tip"></div>
+    <div class="arrow-v3" id="arr-b"></div>
+    <div class="arrow-v3-tip" id="arr-b-tip"></div>
+    <div class="arrow-v3" id="arr-c"></div>
+    <div class="arrow-v3-tip" id="arr-c-tip"></div>
+
+    <!-- L3-A 数据 -->
+    <div class="base green" id="baseA">
+      <div class="base-tag">L3-A · 数据</div>
+      <div class="base-title">CloudBase PG<em>六张表</em></div>
+      <ul>
+        <li><span class="hl">users</span>　账号 / token</li>
+        <li><span class="hl">user_voice_library</span>　我的音色</li>
+        <li><span class="hl">user_audiobooks</span>　生成结果 + 收听日志</li>
+        <li><span class="hl">voice_design_cache</span>　跨用户设计缓存</li>
+      </ul>
+    </div>
+
+    <!-- L3-B 智能 -->
+    <div class="base ochre" id="baseB">
+      <div class="base-tag">L3-B · 智能</div>
+      <div class="base-title">外部云 API<em>按需选型</em></div>
+      <ul>
+        <li>情感分析　<span class="hl">GLM-4-Flash</span>（免费）</li>
+        <li>TTS　<span class="hl">豆包 2.0</span> + 复刻 2.0</li>
+        <li>音色设计　<span class="hl-r">CosyVoice</span>（主/免费）<br/><span style="display:inline-block;margin-left:14px">+ <span class="hl">MiniMax</span>（备）</span></li>
+      </ul>
+    </div>
+
+    <!-- L3-C 素材 -->
+    <div class="base green" id="baseC">
+      <div class="base-tag">L3-C · 素材</div>
+      <div class="base-title">容器内置素材<em>本地缓存</em></div>
+      <ul>
+        <li><span class="hl">assets/bgm</span>　情绪化 CC0 曲库</li>
+      </ul>
+      <div class="tags">
+        情绪标签　
+        <span class="tag">欢快</span><span class="tag">悲伤</span><span class="tag">紧张</span><span class="tag">平静</span><span class="tag">激昂</span>
+      </div>
+    </div>
+
+    <!-- 底部图注 -->
+    <div class="caption">
+      一句话：<span class="em">浏览器 → Flask → 三大底座（数据 / 智能 / 素材）</span>，所有合成与设计按段异步、可监控、可降级。
+    </div>
+
+  </div>
+</body>
+</html>
