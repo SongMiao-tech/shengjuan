@@ -2,14 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<title>声卷 整体架构</title>
+<title>声卷 整体建模与生成流程</title>
 <style>
-  /* 画布锁死 16:9，1280×720，自包含可直接截图嵌入 PPT */
   html, body {
-    margin: 0;
-    padding: 0;
-    background: #F4F6F5;
-    font-family: "PingFang SC", "Microsoft YaHei", "微软雅黑", "Noto Sans SC", sans-serif;
+    margin: 0; padding: 0;
+    background: #FFFFFF;
+    font-family: "PingFang SC", "Microsoft YaHei", "微软雅黑", "Noto Sans SC", Arial, sans-serif;
     color: #2E3238;
     -webkit-font-smoothing: antialiased;
   }
@@ -17,340 +15,370 @@
     width: 1280px;
     height: 720px;
     position: relative;
-    background: #F4F6F5;
+    background: #FFFFFF;
     margin: 0 auto;
     overflow: hidden;
   }
-  /* 顶部标题区 */
+
+  /* 标题区 */
   .title {
     position: absolute;
-    left: 80px;
-    top: 32px;
-    font-size: 30px;
+    left: 0; right: 0; top: 22px;
+    text-align: center;
+    font-size: 24px;
     font-weight: 700;
-    letter-spacing: 1px;
     color: #2E3238;
+    letter-spacing: 1px;
   }
-  .title .accent { color: #4C7A5A; }
   .subtitle {
     position: absolute;
-    left: 80px;
-    top: 70px;
-    font-size: 13px;
-    color: #78827D;
-    letter-spacing: 0.5px;
-  }
-  .topbar {
-    position: absolute;
-    left: 80px;
-    top: 96px;
-    width: 1120px;
-    height: 1px;
-    background: #C8D2CD;
-  }
-  /* 层卡通用 */
-  .layer {
-    position: absolute;
-    left: 80px;
-    width: 1120px;
-    background: #E8EEEA;
-    border-radius: 2px;
-  }
-  .layer::before {
-    content: "";
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 6px;
-    background: #4C7A5A;
-  }
-  .layer .layer-tag {
-    position: absolute;
-    left: 22px;
-    font-size: 13px;
-    font-weight: 700;
-    color: #4C7A5A;
-    letter-spacing: 1.5px;
-  }
-  .layer .layer-head {
-    position: absolute;
-    left: 22px;
-    font-size: 17px;
-    font-weight: 700;
-    color: #2E3238;
-  }
-  .layer ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    font-size: 14px;
-    color: #4A5568;
-    line-height: 1.85;
-  }
-  .layer ul li::before {
-    content: "•";
-    color: #4C7A5A;
-    margin-right: 8px;
-    font-weight: 700;
-  }
-  .layer .col {
-    position: absolute;
-    top: 0;
-  }
-  .layer .col ul li::before { color: #4C7A5A; }
-  /* L1 入口层 */
-  #L1 { top: 116px; height: 116px; }
-  #L1 .layer-tag { top: 14px; }
-  #L1 .layer-head { top: 34px; }
-  #L1 ul { position: absolute; left: 22px; top: 62px; }
-
-  /* 连接箭头 L1→L2 */
-  .arrow-v {
-    position: absolute;
-    left: 640px;
-    width: 2px;
-    background: #4C7A5A;
-  }
-  .arrow-tip {
-    position: absolute;
-    width: 0;
-    height: 0;
-    border-left: 7px solid transparent;
-    border-right: 7px solid transparent;
-    border-top: 9px solid #4C7A5A;
-  }
-  .conn-label {
-    position: absolute;
-    left: 540px;
-    font-size: 13px;
-    font-weight: 700;
-    color: #8C5A46;
-    letter-spacing: 0.5px;
-  }
-  #conn12 { top: 240px; height: 22px; }
-  #conn12-tip { top: 262px; }
-  #conn12-label { top: 230px; }
-
-  /* L2 中枢层 */
-  #L2 { top: 276px; height: 162px; }
-  #L2 .layer-tag { top: 14px; }
-  #L2 .layer-head { top: 34px; }
-  #L2 .col-left { left: 22px; top: 66px; }
-  #L2 .col-right { left: 600px; top: 66px; }
-
-  /* L2→L3 三箭头 */
-  .arrow-v3 {
-    position: absolute;
-    width: 2px;
-    background: #4C7A5A;
-  }
-  .arrow-v3-tip {
-    position: absolute;
-    width: 0;
-    height: 0;
-    border-left: 7px solid transparent;
-    border-right: 7px solid transparent;
-    border-top: 9px solid #4C7A5A;
-  }
-  #arr-a { left: 257px; top: 446px; height: 22px; }
-  #arr-a-tip { left: 250px; top: 468px; }
-  #arr-b { left: 640px; top: 446px; height: 22px; }
-  #arr-b-tip { left: 633px; top: 468px; }
-  #arr-c { left: 1022px; top: 446px; height: 22px; }
-  #arr-c-tip { left: 1015px; top: 468px; }
-
-  /* L3 底座层三卡 */
-  .base {
-    position: absolute;
-    top: 480px;
-    width: 354px;
-    height: 200px;
-    background: #FFFFFF;
-    border: 1px solid #C8D2CD;
-    border-radius: 2px;
-  }
-  .base::before {
-    content: "";
-    position: absolute;
-    left: 0; top: 0;
-    width: 100%;
-    height: 6px;
-  }
-  .base.green::before { background: #4C7A5A; }
-  .base.ochre::before { background: #8C5A46; }
-  .base .base-tag {
-    position: absolute;
-    left: 18px;
-    top: 18px;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 1.5px;
-  }
-  .base.green .base-tag { color: #4C7A5A; }
-  .base.ochre .base-tag { color: #8C5A46; }
-  .base .base-title {
-    position: absolute;
-    left: 18px;
-    top: 40px;
-    font-size: 17px;
-    font-weight: 700;
-    color: #2E3238;
-  }
-  .base .base-title em {
-    font-style: normal;
-    color: #78827D;
-    font-weight: 500;
-    font-size: 13px;
-    margin-left: 6px;
-  }
-  .base ul {
-    position: absolute;
-    left: 18px;
-    top: 74px;
-    right: 14px;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    font-size: 13.5px;
-    color: #4A5568;
-    line-height: 1.9;
-  }
-  .base ul li::before {
-    content: "•";
-    margin-right: 8px;
-    font-weight: 700;
-  }
-  .base.green ul li::before { color: #4C7A5A; }
-  .base.ochre ul li::before { color: #8C5A46; }
-  .base .hl { color: #2E3238; font-weight: 600; }
-  .base .hl-r { color: #8C5A46; font-weight: 700; }
-  .base .hl-g { color: #4C7A5A; font-weight: 700; }
-  .base .tags {
-    position: absolute;
-    left: 18px;
-    top: 150px;
-    font-size: 12px;
-    color: #4A5568;
-  }
-  .base .tags .tag {
-    display: inline-block;
-    padding: 2px 8px;
-    margin-right: 4px;
-    background: #E8EEEA;
-    color: #4C7A5A;
-    border-radius: 2px;
-    font-weight: 600;
-  }
-  #baseA { left: 80px; }
-  #baseB { left: 463px; }
-  #baseC { left: 846px; }
-
-  /* 底部图注 */
-  .caption {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 14px;
+    left: 0; right: 0; top: 54px;
     text-align: center;
     font-size: 13px;
     color: #78827D;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
   }
-  .caption .em { color: #4C7A5A; font-weight: 700; }
+
+  /* 通用卡 */
+  .card {
+    position: absolute;
+    border-radius: 6px;
+    background: #FFFFFF;
+  }
+  /* 四色能力卡 - 浅彩底 */
+  .col-blue  { background: #E3F0FA; }
+  .col-green { background: #E5F3EB; }
+  .col-red   { background: #FCE8E6; }
+  .col-purple{ background: #ECE9F7; }
+
+  /* L0 输入卡（灰底） */
+  .input-card {
+    position: absolute;
+    left: 380px; top: 90px;
+    width: 520px; height: 36px;
+    background: #F4F6F5;
+    border: 1px solid #C8D2CD;
+    border-radius: 6px;
+    line-height: 36px;
+    text-align: center;
+    font-size: 13px;
+    color: #4A5568;
+  }
+  .input-card b { color: #2E3238; font-weight: 600; }
+  .input-card .sep { color: #C8D2CD; margin: 0 8px; }
+
+  /* L1 四个能力卡 */
+  .cap {
+    position: absolute;
+    top: 158px;
+    width: 268px;
+    height: 248px;
+    border-radius: 6px;
+    padding: 0;
+  }
+  .cap .cap-no {
+    position: absolute;
+    left: 18px; top: 16px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+  }
+  .cap .cap-name {
+    position: absolute;
+    left: 18px; top: 36px;
+    font-size: 17px;
+    font-weight: 700;
+  }
+  .cap .cap-steps {
+    position: absolute;
+    left: 18px; right: 18px; top: 72px;
+  }
+  .step {
+    background: #FFFFFF;
+    border-radius: 5px;
+    padding: 9px 12px;
+    margin-bottom: 6px;
+    font-size: 12.5px;
+    color: #2E3238;
+    line-height: 1.4;
+    text-align: center;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .step small { display: block; color: #78827D; font-size: 11px; margin-top: 2px; }
+  .step .em-b { color: #1F5A99; font-weight: 600; }
+  .step .em-g { color: #2E7D4F; font-weight: 600; }
+  .step .em-r { color: #B5392E; font-weight: 600; }
+  .step .em-p { color: #5A4798; font-weight: 600; }
+  .step .em-d { color: #2E3238; font-weight: 600; }
+
+  #cap-a { left: 56px; }
+  #cap-a .cap-no, #cap-a .cap-name { color: #1F5A99; }
+  #cap-b { left: 348px; }
+  #cap-b .cap-no, #cap-b .cap-name { color: #2E7D4F; }
+  #cap-c { left: 640px; }
+  #cap-c .cap-no, #cap-c .cap-name { color: #B5392E; }
+  #cap-d { left: 932px; }
+  #cap-d .cap-no, #cap-d .cap-name { color: #5A4798; }
+
+  /* L0→L1 4 箭头（灰短向下） */
+  .arrow-down {
+    position: absolute;
+    width: 1px;
+    background: #C8D2CD;
+  }
+  .arrow-down-tip {
+    position: absolute;
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #C8D2CD;
+  }
+  #ad-1 { left: 189px; top: 132px; height: 20px; }
+  #adt-1 { left: 184px; top: 152px; }
+  #ad-2 { left: 481px; top: 132px; height: 20px; }
+  #adt-2 { left: 476px; top: 152px; }
+  #ad-3 { left: 773px; top: 132px; height: 20px; }
+  #adt-3 { left: 768px; top: 152px; }
+  #ad-4 { left: 1065px; top: 132px; height: 20px; }
+  #adt-4 { left: 1060px; top: 152px; }
+
+  /* 知识链述（虚线串 4 卡） */
+  .chain-row {
+    position: absolute;
+    left: 56px; right: 56px; top: 424px;
+    height: 26px;
+  }
+  .chain-dash {
+    position: absolute;
+    top: 12px;
+    height: 1px;
+    border-top: 1px dashed #C8D2CD;
+  }
+  .chain-text {
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    text-align: center;
+    font-size: 12.5px;
+    color: #78827D;
+  }
+  .chain-text b { color: #4C7A5A; font-weight: 700; margin-right: 6px; letter-spacing: 1px; }
+  .chain-text .em { color: #4A5568; }
+
+  /* L2 关键产物 4 卡（灰底虚线边） */
+  .out-card {
+    position: absolute;
+    top: 462px;
+    width: 282px;
+    height: 80px;
+    background: #F4F6F5;
+    border: 1px dashed #C8D2CD;
+    border-radius: 6px;
+    text-align: center;
+  }
+  .out-card .out-title {
+    position: absolute;
+    left: 0; right: 0; top: 10px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #2E3238;
+  }
+  .out-card .out-body {
+    position: absolute;
+    left: 14px; right: 14px; top: 36px;
+    font-size: 12px;
+    color: #4A5568;
+    line-height: 1.5;
+  }
+  .out-card .out-body b { color: #2E3238; font-weight: 600; }
+  #out-1 { left: 49px; }
+  #out-2 { left: 343px; }
+  #out-3 { left: 637px; }
+  #out-4 { left: 931px; }
+
+  /* L1→L2 4 虚线短竖箭头（连每张能力卡到对应结果卡） */
+  .vd {
+    position: absolute;
+    width: 1px;
+    border-left: 1px dashed #C8D2CD;
+  }
+  #vd-1 { left: 189px; top: 408px; height: 54px; }
+  #vd-2 { left: 481px; top: 408px; height: 54px; }
+  #vd-3 { left: 773px; top: 408px; height: 54px; }
+  #vd-4 { left: 1065px; top: 408px; height: 54px; }
+
+  /* L3 粗绿边强调卡 */
+  .accent-card {
+    position: absolute;
+    left: 56px; right: 56px; top: 562px;
+    height: 60px;
+    background: #E0EBE4;
+    border: 2.5px solid #4C7A5A;
+    border-radius: 6px;
+    text-align: center;
+  }
+  .accent-card .a-main {
+    position: absolute;
+    left: 0; right: 0; top: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #2E3238;
+    letter-spacing: 0.5px;
+  }
+  .accent-card .a-main .em-g { color: #2E7D4F; }
+  .accent-card .a-sub {
+    position: absolute;
+    left: 0; right: 0; top: 36px;
+    font-size: 12px;
+    color: #4A5568;
+  }
+  .accent-card .a-sub b { color: #2E7D4F; font-weight: 600; }
+
+  /* L2→L3 三箭头合并（仅中间两侧，参考图用虚线串接） */
+  .vd2 {
+    position: absolute;
+    width: 1px;
+    border-left: 1px dashed #C8D2CD;
+  }
+  #vd2-1 { left: 189px; top: 544px; height: 18px; }
+  #vd2-2 { left: 481px; top: 544px; height: 18px; }
+  #vd2-3 { left: 773px; top: 544px; height: 18px; }
+  #vd2-4 { left: 1065px; top: 544px; height: 18px; }
+
+  /* L4 总结 + 橙色边界卡 */
+  .summary {
+    position: absolute;
+    left: 0; right: 0; top: 638px;
+    text-align: center;
+    font-size: 13px;
+    color: #4A5568;
+    letter-spacing: 0.5px;
+  }
+  .summary b { color: #2E3238; font-weight: 700; }
+  .summary .em { color: #4C7A5A; font-weight: 600; }
+
+  .edge-card {
+    position: absolute;
+    left: 240px; right: 240px; top: 668px;
+    height: 38px;
+    background: #FFF4E6;
+    border: 1.5px dashed #C26A1F;
+    border-radius: 6px;
+    text-align: center;
+    line-height: 38px;
+    font-size: 12px;
+    color: #C26A1F;
+  }
+  .edge-card b { color: #8A4A0F; font-weight: 700; margin-right: 6px; letter-spacing: 1px; }
+  .edge-card .sep { color: #E0B07A; margin: 0 8px; }
 </style>
 </head>
 <body>
   <div class="stage">
 
-    <!-- 顶部标题 -->
-    <div class="title">声卷<span class="accent">·</span>整体架构</div>
-    <div class="subtitle">三层九模块：前端入口 → Flask 中枢调度 → 三大底座协同生成有声书</div>
-    <div class="topbar"></div>
+    <div class="title">声卷 整体建模与生成流程</div>
+    <div class="subtitle">云 API 全异步 · 多角色分饰 · 情绪曲线驱动 · 公版经典安全链</div>
 
-    <!-- L1 入口层 -->
-    <div class="layer" id="L1">
-      <div class="layer-tag">L1 · 入口层</div>
-      <div class="layer-head">前端（CloudBase 静态托管 · 双页单 HTML · 无构建）</div>
-      <ul>
-        <li>工作台 <span style="color:#2E3238;font-weight:600">index.html</span>　创作 + 书架</li>
-        <li>睡前故事 <span style="color:#2E3238;font-weight:600">story.html</span>　收听 + 跨页书架 + 迷你播放栏</li>
-        <li>共享 <span style="color:#2E3238;font-weight:600">localStorage</span>　sqAuth / 断网音色缓存</li>
-      </ul>
+    <!-- L0 输入 -->
+    <div class="input-card">
+      需求输入 | <b>≤10000字文本</b> <span class="sep">|</span> <b>13 部公版书库</b> <span class="sep">|</span> <b>多角色音色样本</b>
     </div>
 
-    <!-- L1→L2 箭头 + 认证通道标签 -->
-    <div class="arrow-v" id="conn12"></div>
-    <div class="arrow-tip" id="conn12-tip"></div>
-    <div class="conn-label" id="conn12-label">HTTP(S)  +  Bearer token</div>
+    <!-- L0→L1 4 箭头 -->
+    <div class="arrow-down" id="ad-1"></div><div class="arrow-down-tip" id="adt-1"></div>
+    <div class="arrow-down" id="ad-2"></div><div class="arrow-down-tip" id="adt-2"></div>
+    <div class="arrow-down" id="ad-3"></div><div class="arrow-down-tip" id="adt-3"></div>
+    <div class="arrow-down" id="ad-4"></div><div class="arrow-down-tip" id="adt-4"></div>
 
-    <!-- L2 中枢层 -->
-    <div class="layer" id="L2">
-      <div class="layer-tag">L2 · 中枢层</div>
-      <div class="layer-head">后端 audiobook-api（CloudBase 云托管容器 · Flask）</div>
-      <div class="col col-left">
-        <ul>
-          <li><span style="color:#2E3238;font-weight:600">/auth/*</span>　账号（自建 PBKDF2 + HMAC token）</li>
-          <li><span style="color:#2E3238;font-weight:600">/tasks</span>　生成编排（情感分析 → 分段 → 合成）</li>
-          <li><span style="color:#2E3238;font-weight:600">/voices/*</span>　音色三合一（设计 / 克隆 / 方言）</li>
-          <li><span style="color:#2E3238;font-weight:600">/me/voices</span>　音色库　·　<span style="color:#2E3238;font-weight:600">/me/audiobooks</span>　书架</li>
-        </ul>
-      </div>
-      <div class="col col-right">
-        <ul>
-          <li>任务队列 <span style="color:#2E3238;font-weight:600">asyncio</span>　·　分段缓存</li>
-          <li>用量监控　·　分析缓存</li>
-          <li>云内 <span style="color:#2E3238;font-weight:600">ffmpeg</span> 后期（BGM 混音 / 段落拼接）</li>
-          <li>家长中心　·　收听上报</li>
-        </ul>
+    <!-- L1 四个能力卡 -->
+    <div class="cap col-blue" id="cap-a">
+      <div class="cap-no">问题一</div>
+      <div class="cap-name">内容生成</div>
+      <div class="cap-steps">
+        <div class="step"><b>① 情感分析</b><small>GLM-4-Flash · 启发式分块 · JSON 模板</small></div>
+        <div class="step"><b>② 角色分饰 + 情绪曲线</b><small>段落级 drag · 增量重合成</small></div>
+        <div class="step"><b>③ 异步 TTS 合成</b><small>豆包 2.0 · SSML · 长文本异步</small></div>
       </div>
     </div>
 
-    <!-- L2→L3 三个箭头 -->
-    <div class="arrow-v3" id="arr-a"></div>
-    <div class="arrow-v3-tip" id="arr-a-tip"></div>
-    <div class="arrow-v3" id="arr-b"></div>
-    <div class="arrow-v3-tip" id="arr-b-tip"></div>
-    <div class="arrow-v3" id="arr-c"></div>
-    <div class="arrow-v3-tip" id="arr-c-tip"></div>
-
-    <!-- L3-A 数据 -->
-    <div class="base green" id="baseA">
-      <div class="base-tag">L3-A · 数据</div>
-      <div class="base-title">CloudBase PG<em>六张表</em></div>
-      <ul>
-        <li><span class="hl">users</span>　账号 / token</li>
-        <li><span class="hl">user_voice_library</span>　我的音色</li>
-        <li><span class="hl">user_audiobooks</span>　生成结果 + 收听日志</li>
-        <li><span class="hl">voice_design_cache</span>　跨用户设计缓存</li>
-      </ul>
-    </div>
-
-    <!-- L3-B 智能 -->
-    <div class="base ochre" id="baseB">
-      <div class="base-tag">L3-B · 智能</div>
-      <div class="base-title">外部云 API<em>按需选型</em></div>
-      <ul>
-        <li>情感分析　<span class="hl">GLM-4-Flash</span>（免费）</li>
-        <li>TTS　<span class="hl">豆包 2.0</span> + 复刻 2.0</li>
-        <li>音色设计　<span class="hl-r">CosyVoice</span>（主/免费）<br/><span style="display:inline-block;margin-left:14px">+ <span class="hl">MiniMax</span>（备）</span></li>
-      </ul>
-    </div>
-
-    <!-- L3-C 素材 -->
-    <div class="base green" id="baseC">
-      <div class="base-tag">L3-C · 素材</div>
-      <div class="base-title">容器内置素材<em>本地缓存</em></div>
-      <ul>
-        <li><span class="hl">assets/bgm</span>　情绪化 CC0 曲库</li>
-      </ul>
-      <div class="tags">
-        情绪标签　
-        <span class="tag">欢快</span><span class="tag">悲伤</span><span class="tag">紧张</span><span class="tag">平静</span><span class="tag">激昂</span>
+    <div class="cap col-green" id="cap-b">
+      <div class="cap-no">问题二</div>
+      <div class="cap-name">音色三合一</div>
+      <div class="cap-steps">
+        <div class="step"><b>① 复刻</b><small>豆包声音复刻 2.0 · 免费 15 次</small></div>
+        <div class="step"><b>② 设计</b><small>CosyVoice · 0 元/个 · 跨用户缓存</small></div>
+        <div class="step"><b>③ 方言 / 多角色</b><small>8 方言通道 · 双语版</small></div>
       </div>
     </div>
 
-    <!-- 底部图注 -->
-    <div class="caption">
-      一句话：<span class="em">浏览器 → Flask → 三大底座（数据 / 智能 / 素材）</span>，所有合成与设计按段异步、可监控、可降级。
+    <div class="cap col-red" id="cap-c">
+      <div class="cap-no">问题三</div>
+      <div class="cap-name">多端收听</div>
+      <div class="cap-steps">
+        <div class="step"><b>① index.html 创作台</b><small>书架 · 情绪曲线 · 一键多版本</small></div>
+        <div class="step"><b>② story.html 故事页</b><small>睡前故事 · 跨页书架同步</small></div>
+        <div class="step"><b>③ 迷你播放栏 + 离线下载</b><small>safe-area · 移动端 · ⤓ 双页状态机</small></div>
+      </div>
+    </div>
+
+    <div class="cap col-purple" id="cap-d">
+      <div class="cap-no">问题四</div>
+      <div class="cap-name">账号与数据</div>
+      <div class="cap-steps">
+        <div class="step"><b>① 自建账号</b><small>PBKDF2 + HMAC token · 全云端同步</small></div>
+        <div class="step"><b>② PG 6 表</b><small>用户 · 音色库 · 书架 · 收听 · 缓存</small></div>
+        <div class="step"><b>③ 用量监控 + 兜底降级</b><small>Arrearage 监测 · 分析缓存复用</small></div>
+      </div>
+    </div>
+
+    <!-- L1→L2 4 虚线短竖箭头 -->
+    <div class="vd" id="vd-1"></div>
+    <div class="vd" id="vd-2"></div>
+    <div class="vd" id="vd-3"></div>
+    <div class="vd" id="vd-4"></div>
+
+    <!-- 知识链述 -->
+    <div class="chain-row">
+      <div class="chain-text">
+        <b>安全链</b><span class="em">公版经典 · 启发式分块 · 涉政/敏感/未授权词过滤 · Arrearage 兜底</span>
+      </div>
+    </div>
+
+    <!-- L2 关键产物 4 卡 -->
+    <div class="out-card" id="out-1">
+      <div class="out-title">① 段落级音频 + 情绪标签</div>
+      <div class="out-body">mp3 段落 · <b>欢快/悲伤/紧张/平静/激昂</b> 五标签 · 情绪曲线可拖拽</div>
+    </div>
+    <div class="out-card" id="out-2">
+      <div class="out-title">② 我的音色库 + voice_id</div>
+      <div class="out-body">≤20 条/人 · 云端多设备同步 · <b>0 元设计 + ¥0.8/万字合成</b></div>
+    </div>
+    <div class="out-card" id="out-3">
+      <div class="out-title">③ 离线 mp3 + 跨设备书架</div>
+      <div class="out-body"><b>双页状态机</b> ⤓ → % → ✓ · 收听时长上报 · 移动端 safe-area</div>
+    </div>
+    <div class="out-card" id="out-4">
+      <div class="out-title">④ 账号仪表盘 + 收听报告</div>
+      <div class="out-body">用量监控 · 余额预警 · <b>累计成本 0~30 元 / 次完整演示</b></div>
+    </div>
+
+    <!-- L2→L3 4 虚线短竖箭头 -->
+    <div class="vd2" id="vd2-1"></div>
+    <div class="vd2" id="vd2-2"></div>
+    <div class="vd2" id="vd2-3"></div>
+    <div class="vd2" id="vd2-4"></div>
+
+    <!-- L3 粗绿边强调卡 -->
+    <div class="accent-card">
+      <div class="a-main">全链路累积：<span class="em-g">公版文本</span> → <span class="em-g">情绪分饰</span> → <span class="em-g">多角色合成</span> → <span class="em-g">离线收听</span>，一键产出可演示有声书</div>
+      <div class="a-sub">递进链：<b>内容生成</b> → <b>音色三合一</b> → <b>多端收听</b> → <b>账号与数据</b>，四能力并列且通过安全链串联</div>
+    </div>
+
+    <!-- L4 总结 + 橙色边界卡 -->
+    <div class="summary">
+      核心解法：<b>内容安全优先</b> + <b>多角色分饰</b> + <b>情绪曲线驱动</b> + <span class="em">全云 API 部署（CloudBase 云函数 / 云托管 / 静态托管）</span>
+    </div>
+    <div class="edge-card">
+      <b>边界与权衡</b>单次 ≤10000 字 · 离线 ≤100MB · 计费按字符 · Arrearage 自动降级 · GLM 失败模板兜底
     </div>
 
   </div>
