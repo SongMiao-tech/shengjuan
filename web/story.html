@@ -2049,41 +2049,43 @@ async function playShelfBook(bookId, title, btn) {
   btn.disabled = false; btn.textContent = "▶ 收听";
 }
 
-/* 历史 */
-function histIcon(kind) {
-  return { upload: "📚", generate: "🎧", render: "🎙️" }[kind] || "•";
-}
+/* 历史：只显示收听历史（登录走云端 /me/listen，未登录自动落本地 sqListenLocal），按故事聚合 */
 async function loadHistory() {
-  const auth = getAuth();
-  if (!auth || !auth.token) return;
   const box = $("histList");
-  box.innerHTML = `<div class="empty">🕘 正在读取历史…</div>`;
+  box.innerHTML = `<div class="empty">🕘 正在读取收听历史…</div>`;
   try {
-    const r = await fetch(API + "/me/history?limit=50", { headers: authHeaders() });
-    const items = (await r.json()).history || [];
-    if (!items.length) {
-      box.innerHTML = `<div class="empty">🕘 还没有历史记录<br>上传读本、生成有声书都会记录在这里</div>`;
+    const logs = await fetchListenLogs(30);
+    if (!logs.length) {
+      box.innerHTML = `<div class="empty">🕘 还没有收听历史<br>听过故事后会记录在这里</div>`;
       return;
     }
-    box.innerHTML = items.map(h => {
-      const t = (h.created_at || "").replace("T", " ").slice(0, 16);
-      const safeDetail = escapeHtml(JSON.stringify(h.detail || {})).replace(/'/g, "&#39;");
-      return `<div class="hist-item" data-kind="${h.kind}" data-detail='${safeDetail}'>
-        <div class="hi-icon">${histIcon(h.kind)}</div>
+    const agg = {};
+    logs.forEach(l => {
+      const k = l.story_id || l.title || "unknown";
+      if (!agg[k]) agg[k] = { story_id: l.story_id || "", title: l.title || "未命名故事",
+        last: l.date || "", total: 0, cnt: 0, completed: false };
+      agg[k].total += l.duration_s || 0;
+      agg[k].cnt++;
+      if ((l.date || "") > agg[k].last) agg[k].last = l.date || "";
+      if (l.completed) agg[k].completed = true;
+    });
+    const list = Object.values(agg).sort((a, b) => b.last.localeCompare(a.last));
+    box.innerHTML = list.map(s => {
+      const min = Math.round(s.total / 60);
+      const m = (s.last || "").match(/^\d{4}-(\d{1,2})-(\d{1,2})/);
+      const t = m ? (+m[1]) + "月" + (+m[2]) + "日" : (s.last || "—");
+      return `<div class="hist-item" data-sid="${escapeHtml(s.story_id)}">
+        <div class="hi-icon">🎧</div>
         <div class="hi-body">
-          <div class="hi-title">${escapeHtml(h.title || "")}</div>
-          <div class="hi-time">${t}</div>
+          <div class="hi-title">${escapeHtml(s.title)}${s.completed ? ' <span style="color:var(--accent);font-size:.68rem">✓ 听完</span>' : ""}</div>
+          <div class="hi-time">最近 ${t} · 累计 ${min} 分钟 · ${s.cnt} 次</div>
         </div></div>`;
     }).join("");
     box.querySelectorAll(".hist-item").forEach(el => {
       el.onclick = () => {
-        const detail = JSON.parse(el.dataset.detail || "{}");
-        if (el.dataset.kind === "upload" && detail.book_id) {
-          showView("shelf"); loadShelf();
-          toast("在书架中找到对应读本，点「有声化」继续处理");
-        } else {
-          toast("该内容可在「我的书架」中重新有声化", 2600);
-        }
+        const sid = el.dataset.sid;
+        if (sid) openStory(sid);
+        else toast("该记录缺少故事信息，无法直接打开", 2600);
       };
     });
   } catch (e) { box.innerHTML = `<div class="empty">加载失败：${escapeHtml(String(e).slice(0, 60))}</div>`; }
