@@ -449,7 +449,7 @@
 </div>
 
 <!-- 音色库选择弹窗（爸妈的声音讲：从「我的音色库」挑选音色） -->
-<div id="pvLibModal" style="display:none; position:fixed; inset:0; background:rgba(10,8,18,.7); z-index:98; align-items:center; justify-content:center;">
+<div id="pvLibModal" style="display:none; position:fixed; inset:0; background:rgba(10,8,18,.7); z-index:99; align-items:center; justify-content:center;">
   <div style="background:var(--card); border:1px solid var(--line); border-radius:16px; padding:22px 20px; max-width:380px; width:90vw; max-height:72vh; display:flex; flex-direction:column;">
     <div style="font-size:1.02rem; font-weight:700; margin-bottom:4px;">🎙️ 选择讲故事的音色</div>
     <div id="pvLibSub" style="font-size:.76rem; color:var(--ink-soft); margin-bottom:12px;"></div>
@@ -465,7 +465,7 @@
 <div id="clipModal" style="display:none; position:fixed; inset:0; background:rgba(10,8,18,.7); z-index:98; align-items:center; justify-content:center;">
   <div class="clip-modal-card">
     <div class="cm-title">家长开场 / 结尾</div>
-    <div class="cm-sub" id="cmVoiceLine">用「我的音色」录制宝贝专属的开场与晚安语</div>
+    <div class="cm-sub" id="cmVoiceLine">从你的音色库选一个声音，录制宝贝专属的开场与晚安语</div>
 
     <div class="cm-switch-row">
       <div style="flex:1;">
@@ -719,7 +719,7 @@ let clipChainStopped = false;    // 定时停止等触发后不再接续播放
 let clipBusyKind = null;         // 正在合成的片段 kind
 let chainPending = false;        // 片段播完但用户已暂停：等用户按播放再接正文
 let clipDraft = null;            // 编辑弹窗草稿
-let clipVoice = null;            // 「我的音色」缓存
+let clipVoice = null;            // 开场/结尾当前音色（来自音色库 {voice_id, name, dialect}）
 let previewAudio = null;         // 弹窗内试听
 
 function getClipSwitch() {
@@ -1313,9 +1313,11 @@ async function pvLoadLib() {
   return { rows: pvLocalLib(), cloud: false };
 }
 
-/* ── 音色库选择弹窗 ── */
+/* ── 音色库选择弹窗（mode: "parentVoice"=爸妈声音讲 | "clip"=开场/结尾换音色） ── */
 let pvPicked = null;
-async function openPvLibPicker() {
+let pvLibMode = "parentVoice";
+async function openPvLibPicker(mode) {
+  pvLibMode = mode || "parentVoice";
   const { rows, cloud } = await pvLoadLib();
   if (!rows.length) {
     const auth = getAuth();
@@ -1325,9 +1327,13 @@ async function openPvLibPicker() {
         : "登录声卷账号并创造一个专属声音，就能用它给孩子讲故事啦。",
       "去工作台创造声音", () => location.href = "index.html");
   }
-  pvPicked = rows[0];
+  /* clip 模式默认选中编辑页当前音色 */
+  pvPicked = (pvLibMode === "clip" && clipVoice)
+    ? (rows.find(v => v.voice_id === clipVoice.voice_id) || rows[0])
+    : rows[0];
   $("pvLibSub").textContent = (cloud ? "来自你的账号音色库，各设备同步" : "未登录 · 仅本机音色")
-    + ` · 选一个来读《${curStory.title}》`;
+    + (pvLibMode === "clip" ? " · 选一个来录制开场 / 结尾" : ` · 选一个来读《${curStory.title}》`);
+  $("pvLibGo").textContent = pvLibMode === "clip" ? "用这个音色" : "用这个声音讲";
   $("pvLibList").innerHTML = rows.map((v, i) => `
     <div class="pv-lib-row" data-i="${i}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;background:var(--card-hi);">
       <div style="flex:1;min-width:0;">
@@ -1354,6 +1360,14 @@ $("pvLibCancel").onclick = () => { $("pvLibModal").style.display = "none"; };
 $("pvLibGo").onclick = () => {
   if (!pvPicked) return toast("先挑一个音色");
   $("pvLibModal").style.display = "none";
+  if (pvLibMode === "clip") {
+    /* 开场/结尾：记住选择，更新编辑页音色行（已合成音频不受影响，重录时生效） */
+    clipVoice = pvPicked;
+    store.setItem("sqClipVoiceId", pvPicked.voice_id);
+    updateClipVoiceLine();
+    toast(`已切换音色：「${pvPicked.name}」，重录后生效`);
+    return;
+  }
   const est = Math.max(60, Math.round(curText.chars / 4.5));
   showPvModal("👨‍👩‍👧", `用「${pvPicked.name}」讲《${curStory.title}》？`,
     `需要实时生成，大约 ${est > 90 ? Math.round(est / 60) + " 分钟" : est + " 秒"}，生成期间可以先听原来的版本。`,
@@ -1409,7 +1423,7 @@ async function startParentVoiceRender(voice) {
   }
 }
 
-/* ───────── 家长开场/结尾（「我的音色」合成 + 编辑页） ───────── */
+/* ───────── 家长开场/结尾（音色库选音色合成 + 编辑页） ───────── */
 const CLIP_MAX = 100;
 const CLIP_KINDS = ["opening", "closing"];
 const CLIP_LABEL = { opening: "开场语", closing: "结束语" };
@@ -1454,31 +1468,24 @@ function stopPreview() {
   clipEl("closing", "Play").textContent = "▶ 试听";
 }
 
-/* 编辑入口：需登录 + 已有「我的音色」 */
+/* 编辑入口：需登录 + 音色库至少有一个音色（与「爸妈的声音讲」同源，可选音色） */
 async function openClipEditor() {
   if (clipBusyKind) return toast("正在合成中，请稍候…");
   const auth = getAuth();
   if (!auth || !auth.token) {
     return showPvModal("🔒", "还没登录",
-      "用「我的音色」录制开场 / 结尾，需要先登录声卷账号。", "去登录 / 注册", () => location.href = "index.html");
+      "录制开场 / 结尾需要先登录声卷账号。", "去登录 / 注册", () => location.href = "index.html");
   }
-  toast("正在检查你的专属声音…");
-  let voice = null;
-  try {
-    const r = await fetch(API + "/me/voice", { headers: authHeaders() });
-    if (r.ok) voice = (await r.json()).voice;
-  } catch (e) { /* 网络失败按无声音处理 */ }
-  if (!voice) {
-    /* 旧「我的声音」已迁移到音色库：回落取音色库第一个音色，保持开场/结尾可用 */
-    const lib = await pvLoadLib();
-    if (lib.rows.length) voice = { speaker_id: lib.rows[0].voice_id, name: lib.rows[0].name };
-  }
-  if (!voice) {
-    return showPvModal("🎙️", "还没有可用的音色",
-      "去工作台创造一个专属声音，就能录制宝贝专属的开场与晚安语啦。",
+  toast("正在打开你的音色库…");
+  const lib = await pvLoadLib();
+  if (!lib.rows.length) {
+    return showPvModal("🎙️", "音色库还是空的",
+      "去工作台用「智能生成」或「创造新声音」做一个专属声音，就能录制宝贝专属的开场与晚安语啦。",
       "去工作台创造声音", () => location.href = "index.html");
   }
-  clipVoice = voice;
+  /* 默认选中上次用的音色，找不到（已删除）回落第一个 */
+  const lastId = store.getItem("sqClipVoiceId") || "";
+  clipVoice = lib.rows.find(v => v.voice_id === lastId) || lib.rows[0];
   const saved = getClips();
   clipDraft = {
     opening: Object.assign({ name: "开场语", text: "", b64: null, dur_s: 0, stale: false, error: false, b64Text: "" }, saved.opening || {}),
@@ -1488,10 +1495,18 @@ async function openClipEditor() {
   $("cmMaster").checked = !!sw.on;
   $("cmChipOpening").classList.toggle("active", !!sw.opening);
   $("cmChipClosing").classList.toggle("active", !!sw.closing);
-  $("cmVoiceLine").textContent = `当前音色：「${voice.name}」（我的音色）`;
+  updateClipVoiceLine();
   syncClipInputs();
   $("clipModal").style.display = "flex";
 }
+function updateClipVoiceLine() {
+  $("cmVoiceLine").innerHTML = `当前音色：「${escapeHtml(clipVoice.name)}」 <span style="color:var(--accent);cursor:pointer;text-decoration:underline;">更换</span>`;
+}
+/* 编辑页内点「更换」：复用音色库选择弹窗（clip 模式） */
+$("cmVoiceLine").addEventListener("click", (e) => {
+  if (!clipVoice) return;
+  openPvLibPicker("clip");
+});
 $("clipBtnList").onclick = openClipEditor;
 $("clipBtn").onclick = openClipEditor;
 
@@ -1507,13 +1522,13 @@ CLIP_KINDS.forEach(kind => {
   clipEl(kind, "Name").addEventListener("input", () => { clipDraft[kind].name = clipEl(kind, "Name").value; });
 });
 
-/* 合成：走 /tasks（我的音色 + bedtime 语感 + 无 BGM），成品 base64 存本地 */
+/* 合成：走 /tasks（音色库所选音色 + bedtime 语感 + 无 BGM），成品 base64 存本地 */
 async function synthClip(kind) {
   if (clipBusyKind) return toast("正在合成中，请稍候…");
   const c = clipDraft[kind];
   const text = (c.text || "").trim();
   if (!text) return toast(`先写一句${CLIP_LABEL[kind]}吧`);
-  if (!clipVoice) return toast("未获取到「我的音色」，请重新打开编辑页");
+  if (!clipVoice) return toast("未获取到音色，请重新打开编辑页");
   clipBusyKind = kind;
   c.error = false;
   refreshClipSec(kind);
@@ -1522,7 +1537,7 @@ async function synthClip(kind) {
   try {
     const r = await fetch(API + "/tasks", {
       method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ text, narrator: clipVoice.speaker_id, style: "bedtime", bgm: false })
+      body: JSON.stringify({ text, narrator: clipVoice.voice_id, dialect: clipVoice.dialect || null, style: "bedtime", bgm: false })
     });
     if (!r.ok) throw new Error((await r.json()).error || "HTTP " + r.status);
     const { task_id } = await r.json();
