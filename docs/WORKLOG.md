@@ -353,3 +353,10 @@
 - 对齐「爸妈的声音讲」修法：开场/结尾编辑页弃用旧「我的音色」（/me/voice），改从音色库选音色——音色行可点「更换」，复用音色库选择弹窗，记住上次选择，合成参数对齐 /tasks（voice_id + dialect）
 - 顺修 pvLibModal z-index 层级 bug（从编辑页内打开被同层级弹窗盖住无法点击）
 - playwright 本地 + 线上验证全过：默认音色 → 更换 → 切换生效 → 重开记住选择
+
+### 智能生成音色加试听键（commit c1555a4，已部署+线上验证）
+
+- 「智能生成音色」弹窗生成成功后自动试听一次，并新增「▶ 再听一次」按钮（preview_base64 缺失时按钮隐藏，走降级提示）；playPreview 复用音色列表试听的 previewAudio 通道（播新停旧防叠加）
+- 过程中引入并修复 `let previewAudio` 重复声明（SyntaxError 导致整块 script 不执行，症状：音色列表空、顶层函数 undefined）；教训已入 commit message——往大内联 script 加代码前先全文查重
+- **部署通道变更**：CloudBase MCP 工具本会话失联（工具索引无 manageHosting）→ 改走 tcb CLI（3.8.1）：`tcb login` 设备码登录 → `tcb hosting deploy <file> index.html -e <envId> --yes` 单文件上传。注意 envId 是 `sm-20252354-d0gugy5fq52b8b895`（域名后缀 `-1421728968` 是 APPID 不是 envId 一部分，拼错报 Env not exist）
+- 线上 playwright 验证通过：风险提醒过页 → 自定义音色 → 智能生成（mock /voices/smart_design 带 preview_base64）→ #smartReplay 出现可点、无 pageerror；截图存 outputs/智能生成_试听按钮_线上验证.png
