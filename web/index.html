@@ -201,7 +201,6 @@
 
   .slider-row { margin-bottom: 18px; }
   .slider-cap { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--ink-soft); margin-bottom: 6px; }
-  .slider-cap b { font-weight: 600; color: var(--ink); }
   input[type="range"] { width: 100%; accent-color: var(--accent); height: 22px; }
 
   .prompt-preview {
@@ -1180,7 +1179,7 @@ function openAdjustModal(index, segs) {
       角色 ${s.role} · ${e.label} —— 拖动滑块改变这一段的朗读情绪强度：
     </div>
     <div class="slider-row">
-      <div class="slider-cap"><span>弱</span><b id="adjCap">强</b><span>强</span></div>
+      <div class="slider-cap"><span>弱</span><span>强</span></div>
       <input type="range" min="5" max="100" value="${Math.round(s.intensity * 100)}" id="adjSlider">
       <div style="text-align:center;font-family:var(--mono);font-size:1rem;color:var(--accent-deep);" id="adjVal">
         ${Math.round(s.intensity * 100)}%
