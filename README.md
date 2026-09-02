@@ -37,7 +37,7 @@ shengjuan/
 │   └── dao.py              CRUD 封装（python -m app.dao 可自检）
 ├── cloudbase/migrations/   CloudBase PG 建表迁移（users / user_voices / user_listen_logs / user_audiobooks，版本化）
 ├── cloudrun/               CloudBase 云托管服务（后端 API，容器部署）
-│   ├── app.py              流水线 + 账号系统 + 书架（/tasks /voices/* /auth/* /me/voice /me/audiobooks）
+│   ├── app.py              流水线 + 账号系统 + 书架（/tasks /voices/* /auth/* /me/voices /me/audiobooks）
 │   ├── Dockerfile          python3.11-slim + ffmpeg
 │   └── assets/bgm/         情绪曲库
 ├── web/                    前端
@@ -81,7 +81,7 @@ python scripts/pipeline.py --input story.txt -o final.mp3 --narrator S_xxxxx
 
 | 变量 | 用途 |
 |---|---|
-| `VOLC_API_KEY` / `GLM_API_KEY` / `MINIMAX_API_KEY` | 合成 / 情感分析 / 音色设计 |
+| `VOLC_API_KEY` / `GLM_API_KEY` / `MINIMAX_API_KEY` / `DASHSCOPE_API_KEY` | 合成 / 情感分析 / 音色设计（备用）/ CosyVoice 设计+合成（主设计通道） |
 | `CB_ENV_ID` | CloudBase 环境 ID，拼 PG REST 地址 |
 | `CB_SERVICE_KEY` | service_role API Key，绕 RLS 供后端读写 PG |
 | `CB_AUTH_SECRET` | token 签名密钥（泄露等于可伪造任意用户，务必保密） |
@@ -98,9 +98,11 @@ python scripts/pipeline.py --input story.txt -o final.mp3 --narrator S_xxxxx
 | 表 | 说明 |
 |---|---|
 | `users` | uid(PK) / username(UNIQUE) / password_hash / created_at |
-| `user_voices` | uid(PK) / speaker_id / name / source / dialect / created_at |
+| `user_voices` | 每用户 1 条覆盖式「我的音色」（旧机制，接口保留兼容） |
+| `user_voice_library` | 音色库（PK=(uid,voice_id)，每账号上限 20 条，RLS 隔离，来源徽标） |
 | `user_listen_logs` | 睡前故事收听记录（家长中心 7 天报告数据源） |
-| `user_audiobooks` | 跨页书架（工作台保存的成品音频，睡前故事页可听） |
+| `user_audiobooks` | 跨页书架（工作台保存的成品音频 base64，睡前故事页可听可下载） |
+| `voice_design_cache` | 音色设计缓存（prompt 哈希主键，含 provider 字段，跨用户共享降费） |
 
 `user_voices` 主键为 uid，天然实现「每用户 1 条、复制即覆盖」。RLS policy 用
 `auth.uid()` 做行级隔离；后端走 `CB_SERVICE_KEY`（service_role）访问，
@@ -114,8 +116,8 @@ python scripts/pipeline.py --input story.txt -o final.mp3 --narrator S_xxxxx
 
 - **公版故事库**：20 篇经典改编（格林/安徒生童话、伊索寓言、西游记节选、神话故事），开箱即听
 - **儿童播放器**：夜间友好 UI、大按钮大字、逐段播放、语速可调、家长音色代读
-- **迷你播放栏**：故事列表页常驻，播放/暂停原地切换、点击进播放页、退出重进恢复篇目与进度
-- **跨页书架**：工作台成品一键「保存到书架」→ 睡前故事页同步可听；播放进度跨页跨设备一致（PG）
+- **迷你播放栏**：故事列表页常驻，播放/暂停原地切换、点击进播放页、退出重进恢复篇目与进度；全面屏 safe-area 适配，内容不被系统手势条遮挡
+- **跨页书架**：工作台成品一键「保存到书架」→ 睡前故事页同步可听；播放进度跨页跨设备一致（PG）；条目支持一键下载 MP3（⤓ → 下载百分比 → ✓ 状态机，两页同款）
 - **家长中心**：近 7 天收听报告（柱状图/听完率/最爱标签，账号级跨设备同步）、每日收听上限、就寝时段控制、离线缓存管理
 - **离线收听**：Cache API 缓存音频与正文，断网也能播放已保存的故事
 
@@ -124,17 +126,18 @@ python scripts/pipeline.py --input story.txt -o final.mp3 --narrator S_xxxxx
 - **情绪曲线编辑器**：段落级情绪强度可拖拽调整，增量重合成单段后重混音整篇
 - **多角色分饰**：GLM 标注角色 + 性别 → 声池自动分配，同角色全篇锁定同一音色
 - **引号兼容**：弯引号 "" / 直角引号「」/ 嵌套『』全兼容；旁白段内嵌「X道：」台词自动救援拆出
-- **自定义音色**：MiniMax Voice Design（文本描述造音色）+ 豆包声音复刻 2.0（录音克隆爸妈的声音）
+- **自定义音色**：阿里 CosyVoice 声音设计（免费，主通道）/ MiniMax Voice Design（备用）/ 豆包声音复刻 2.0（录音克隆爸妈的声音）/ 智能生成（一句话描述 → GLM 扩写专业设定 → 免费设计）
 - **方言通道**：豆包四大多方言母音色 × explicit_dialect，支持川/粤/东北/京/沪等 8 方言（祖辈方言讲故事）
 - **内置书库**：13 部公版古籍（西游记全本 100 回 / 论语 / 庄子 / 诗经 / 韩非子…，CC0 协议，简体，国内 CDN 直连）
 - **一键多版本**：正常 / 慢速（哄睡专用）/ 英语（整篇英文朗读）/ 预告片（情绪拉满 + 强制紧张配乐）
 - **长文支持**：单次上限 10000 字，分块分析（1200 字/块，跨块同名角色声线一致）
 - **BGM 智能匹配**：程序化合成八音盒风格曲库（neutral/calm/sad/happy/tense），ducking 混音 + 响度归一
+- **手机端适配**：窄屏堆叠布局、书架视图专用布局（隐藏音色侧栏直达书架）、触控目标放大、区块头部两行化
 
 ### 通用基础
 
-- **账号系统**：注册 / 登录，登录后可跨设备保存「我的音色」。走自建 users 表（CloudBase Auth 不支持用户名密码自助注册）+ PBKDF2 密码哈希 + HMAC token（7 天有效）
-- **我的音色**：每账号 1 条覆盖式绑定，来源可以是预置音色池 / 录音克隆 / AI 设计；支持试听、设为旁白、删除
+- **账号系统**：注册 / 登录，登录后音色云端跨设备同步。走自建 users 表（CloudBase Auth 不支持用户名密码自助注册）+ PBKDF2 密码哈希 + HMAC token（7 天有效）
+- **我的音色库**：每账号最多 20 条（克隆 / 设计 / 智能生成 / 预置收藏四来源，来源徽标区分），云端全量多设备同步、断网走本地缓存、登录自动迁移；支持试听、重命名、删除、一键设为旁白
 - **内容安全**：读本上传 / 有声化前敏感词过滤；收听数据仅按 uid 隔离存储
 
 ## 测试
