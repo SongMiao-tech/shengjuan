@@ -1,19 +1,46 @@
 <svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="0" width="1280" height="720" fill="#FFFFFF"/>
-  <text x="80" y="96" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A8A8A">HIGHLIGHT 02</text>
-  <text x="1200" y="96" text-anchor="end" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A8A8A">05 / 08</text>
-  <rect x="80" y="132" width="56" height="6" fill="#000000"/>
-  <text x="80" y="240" font-family="微软雅黑, Arial, sans-serif" font-size="48" font-weight="bold" fill="#000000">设计成本，压到接近零</text>
-  <text x="80" y="316" font-family="微软雅黑, Arial, sans-serif" font-size="24" fill="#333333">原本走 MiniMax，一个音色二十多块</text>
-  <rect x="80" y="344" width="880" height="40" fill="#D9D9D9"/>
-  <text x="976" y="372" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#333333">20+ 元</text>
-  <text x="80" y="452" font-family="微软雅黑, Arial, sans-serif" font-size="24" fill="#333333">换成 CosyVoice 创建免费，再加设计缓存</text>
-  <rect x="80" y="480" width="96" height="40" fill="#E63946"/>
-  <text x="196" y="508" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#E63946">≈ 0</text>
-  <text x="384" y="508" font-family="微软雅黑, Arial, sans-serif" font-size="20" fill="#8A8A8A">同描述第二次直接复用，不重复扣费</text>
-  <line x1="80" y1="576" x2="1200" y2="576" stroke="#E5E5E5" stroke-width="1"/>
-  <text x="80" y="628" font-family="微软雅黑, Arial, sans-serif" font-size="24" fill="#000000" font-weight="bold">音色三合一</text>
-  <text x="296" y="628" font-family="微软雅黑, Arial, sans-serif" font-size="22" fill="#333333">五秒录音克隆本人声音</text>
-  <text x="632" y="628" font-family="微软雅黑, Arial, sans-serif" font-size="22" fill="#333333">一句话设计新音色</text>
-  <text x="920" y="628" font-family="微软雅黑, Arial, sans-serif" font-size="22" fill="#333333">八种方言</text>
+  <rect x="0" y="0" width="1280" height="720" fill="#F4F6F5"/>
+  <text x="1173" y="76" font-family="Arial" font-size="15" letter-spacing="2" text-anchor="end" fill="#78827D">05 / 08</text>
+  <text x="107" y="112" font-family="微软雅黑" font-size="37" font-weight="bold" fill="#2E3238">亮点二 · 音色三合一，成本压到接近零</text>
+  <rect x="107" y="138" width="107" height="4" fill="#4C7A5A"/>
+
+  <text x="107" y="196" font-family="微软雅黑" font-size="15" font-weight="bold" fill="#4C7A5A">三种获取音色的方式</text>
+
+  <rect x="107" y="228" width="320" height="140" fill="#E8EEEA"/>
+  <text x="133" y="276" font-family="微软雅黑" font-size="21" font-weight="bold" fill="#4C7A5A">声音克隆</text>
+  <text x="133" y="316" font-family="微软雅黑" font-size="17" fill="#2E3238">五秒录音，克隆本人声音</text>
+  <line x1="437" y1="298" x2="487" y2="298" stroke="#4C7A5A" stroke-width="2"/>
+  <line x1="480" y1="292" x2="487" y2="298" stroke="#4C7A5A" stroke-width="2"/>
+  <line x1="480" y1="304" x2="487" y2="298" stroke="#4C7A5A" stroke-width="2"/>
+
+  <rect x="507" y="228" width="320" height="140" fill="#E8EEEA"/>
+  <text x="533" y="276" font-family="微软雅黑" font-size="21" font-weight="bold" fill="#4C7A5A">AI 设计</text>
+  <text x="533" y="316" font-family="微软雅黑" font-size="17" fill="#2E3238">一句话描述，生成新音色</text>
+  <line x1="837" y1="298" x2="887" y2="298" stroke="#4C7A5A" stroke-width="2"/>
+  <line x1="880" y1="292" x2="887" y2="298" stroke="#4C7A5A" stroke-width="2"/>
+  <line x1="880" y1="304" x2="887" y2="298" stroke="#4C7A5A" stroke-width="2"/>
+
+  <rect x="907" y="228" width="266" height="140" fill="#E8EEEA"/>
+  <text x="933" y="276" font-family="微软雅黑" font-size="21" font-weight="bold" fill="#4C7A5A">方言</text>
+  <text x="933" y="316" font-family="微软雅黑" font-size="17" fill="#2E3238">内置八种方言可选</text>
+
+  <line x1="107" y1="406" x2="1173" y2="406" stroke="#C8D2CD" stroke-width="1"/>
+
+  <text x="107" y="448" font-family="微软雅黑" font-size="15" font-weight="bold" fill="#4C7A5A">一笔真实成本账</text>
+
+  <text x="107" y="500" font-family="微软雅黑" font-size="17" fill="#8C5A46">原本走 MiniMax</text>
+  <text x="107" y="570" font-family="微软雅黑" font-size="48" font-weight="bold" fill="#E63946">20 多元 / 个</text>
+  <line x1="440" y1="535" x2="510" y2="535" stroke="#4C7A5A" stroke-width="2"/>
+  <line x1="503" y1="529" x2="510" y2="535" stroke="#4C7A5A" stroke-width="2"/>
+  <line x1="503" y1="541" x2="510" y2="535" stroke="#4C7A5A" stroke-width="2"/>
+
+  <text x="547" y="500" font-family="微软雅黑" font-size="17" fill="#4C7A5A">换 CosyVoice + 设计缓存</text>
+  <text x="547" y="538" font-family="微软雅黑" font-size="19" fill="#2E3238">创建免费；同描述第二次</text>
+  <text x="547" y="570" font-family="微软雅黑" font-size="19" fill="#2E3238">直接复用，不重复生成</text>
+  <line x1="833" y1="535" x2="903" y2="535" stroke="#4C7A5A" stroke-width="2"/>
+  <line x1="896" y1="529" x2="903" y2="535" stroke="#4C7A5A" stroke-width="2"/>
+  <line x1="896" y1="541" x2="903" y2="535" stroke="#4C7A5A" stroke-width="2"/>
+
+  <text x="940" y="500" font-family="微软雅黑" font-size="17" fill="#4C7A5A">实际成本</text>
+  <text x="940" y="570" font-family="微软雅黑" font-size="48" font-weight="bold" fill="#4C7A5A">接近零</text>
 </svg>

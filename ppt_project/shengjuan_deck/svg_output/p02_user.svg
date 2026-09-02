@@ -1,17 +1,23 @@
 <svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="0" width="1280" height="720" fill="#FFFFFF"/>
-  <text x="80" y="96" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A8A8A">USER</text>
-  <text x="1200" y="96" text-anchor="end" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A8A8A">02 / 08</text>
-  <rect x="80" y="132" width="56" height="6" fill="#000000"/>
-  <text x="80" y="248" font-family="微软雅黑, Arial, sans-serif" font-size="56" font-weight="bold" fill="#000000">只做亲子家庭</text>
-  <rect x="80" y="312" width="600" height="248" fill="#F1F1F1"/>
-  <text x="120" y="368" font-family="微软雅黑, Arial, sans-serif" font-size="20" fill="#000000" font-weight="bold">家长 · 白天</text>
-  <text x="120" y="424" font-family="微软雅黑, Arial, sans-serif" font-size="24" fill="#333333">花几分钟把公版童话</text>
-  <text x="120" y="466" font-family="微软雅黑, Arial, sans-serif" font-size="24" fill="#333333">做成专属有声书</text>
-  <rect x="704" y="312" width="496" height="248" fill="#F1F1F1"/>
-  <text x="744" y="368" font-family="微软雅黑, Arial, sans-serif" font-size="20" fill="#E63946" font-weight="bold">孩子 · 晚上</text>
-  <text x="744" y="424" font-family="微软雅黑, Arial, sans-serif" font-size="24" fill="#333333">打开手机就能听</text>
-  <text x="744" y="466" font-family="微软雅黑, Arial, sans-serif" font-size="24" fill="#333333">进度接着上一次</text>
-  <line x1="80" y1="600" x2="1200" y2="600" stroke="#E5E5E5" stroke-width="1"/>
-  <text x="80" y="648" font-family="微软雅黑, Arial, sans-serif" font-size="20" fill="#8A8A8A">规划时画过四类人群，后来全砍了 —— 贪多，每个都做不深</text>
+  <rect x="0" y="0" width="1280" height="720" fill="#F4F6F5"/>
+  <text x="1173" y="76" font-family="Arial" font-size="15" letter-spacing="2" text-anchor="end" fill="#78827D">02 / 08</text>
+  <text x="107" y="112" font-family="微软雅黑" font-size="37" font-weight="bold" fill="#2E3238">目标用户收得很窄：亲子家庭</text>
+  <rect x="107" y="138" width="107" height="4" fill="#4C7A5A"/>
+
+  <text x="107" y="196" font-family="微软雅黑" font-size="15" font-weight="bold" fill="#4C7A5A">家长 · 生产者</text>
+  <text x="107" y="248" font-family="微软雅黑" font-size="24" fill="#2E3238">白天花几分钟，</text>
+  <text x="107" y="290" font-family="微软雅黑" font-size="24" fill="#2E3238">把公版童话做成</text>
+  <text x="107" y="332" font-family="微软雅黑" font-size="24" font-weight="bold" fill="#4C7A5A">专属有声书</text>
+
+  <line x1="640" y1="196" x2="640" y2="400" stroke="#C8D2CD" stroke-width="1"/>
+
+  <text x="693" y="196" font-family="微软雅黑" font-size="15" font-weight="bold" fill="#4C7A5A">孩子 · 消费者</text>
+  <text x="693" y="248" font-family="微软雅黑" font-size="24" fill="#2E3238">晚上打开手机，</text>
+  <text x="693" y="290" font-family="微软雅黑" font-size="24" fill="#2E3238">就能听爸爸妈妈</text>
+  <text x="693" y="332" font-family="微软雅黑" font-size="24" font-weight="bold" fill="#4C7A5A">做的故事</text>
+
+  <line x1="107" y1="400" x2="1173" y2="400" stroke="#C8D2CD" stroke-width="1"/>
+
+  <rect x="107" y="430" width="1066" height="70" fill="#E8EEEA"/>
+  <text x="155" y="472" font-family="微软雅黑" font-size="17" fill="#78827D">规划时画过四类人群，后来全砍了——<tspan font-weight="bold" fill="#4C7A5A">贪多，每个都做不深</tspan>。</text>
 </svg>

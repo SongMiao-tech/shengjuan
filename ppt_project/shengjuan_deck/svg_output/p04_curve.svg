@@ -1,27 +1,46 @@
 <svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="0" width="1280" height="720" fill="#FFFFFF"/>
-  <text x="80" y="96" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A8A8A">HIGHLIGHT 01</text>
-  <text x="1200" y="96" text-anchor="end" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A8A8A">04 / 08</text>
-  <rect x="80" y="132" width="56" height="6" fill="#000000"/>
-  <text x="80" y="240" font-family="微软雅黑, Arial, sans-serif" font-size="48" font-weight="bold" fill="#000000">拖哪一段，只重算那一段</text>
-  <text x="80" y="316" font-family="微软雅黑, Arial, sans-serif" font-size="24" fill="#333333">大模型把全文切段，每段打上情绪标签、强度和角色</text>
-  <text x="80" y="360" font-family="微软雅黑, Arial, sans-serif" font-size="24" fill="#333333">前端画成一条能拖的曲线</text>
-  <line x1="700" y1="240" x2="700" y2="560" stroke="#E5E5E5" stroke-width="1"/>
-  <line x1="740" y1="512" x2="1200" y2="512" stroke="#E5E5E5" stroke-width="1"/>
-  <line x1="740" y1="384" x2="1200" y2="384" stroke="#E5E5E5" stroke-width="1" stroke-dasharray="4 6"/>
-  <line x1="740" y1="256" x2="1200" y2="256" stroke="#E5E5E5" stroke-width="1"/>
-  <polyline points="740,470 816,400 892,430 968,330 1044,360 1120,290 1196,310" fill="none" stroke="#000000" stroke-width="3"/>
-  <circle cx="816" cy="400" r="6" fill="#000000"/>
-  <circle cx="892" cy="430" r="6" fill="#000000"/>
-  <circle cx="1044" cy="360" r="6" fill="#000000"/>
-  <circle cx="1120" cy="290" r="6" fill="#000000"/>
-  <circle cx="968" cy="330" r="12" fill="none" stroke="#000000" stroke-width="3"/>
-  <text x="968" y="240" text-anchor="middle" font-family="微软雅黑, Arial, sans-serif" font-size="18" fill="#000000">拖这个点</text>
-  <line x1="968" y1="252" x2="968" y2="310" stroke="#000000" stroke-width="1"/>
-  <text x="740" y="552" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#8A8A8A">段落序号</text>
-  <line x1="80" y1="440" x2="640" y2="440" stroke="#E5E5E5" stroke-width="1"/>
-  <text x="80" y="500" font-family="微软雅黑, Arial, sans-serif" font-size="20" fill="#8A8A8A">整篇重合成</text>
-  <text x="80" y="576" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="#8A8A8A">30s</text>
-  <text x="360" y="500" font-family="微软雅黑, Arial, sans-serif" font-size="20" fill="#000000">增量重合成</text>
-  <text x="360" y="576" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="#E63946">1s</text>
+  <rect x="0" y="0" width="1280" height="720" fill="#F4F6F5"/>
+  <text x="1173" y="76" font-family="Arial" font-size="15" letter-spacing="2" text-anchor="end" fill="#78827D">04 / 08</text>
+  <text x="107" y="112" font-family="微软雅黑" font-size="37" font-weight="bold" fill="#2E3238">亮点一 · 情绪曲线编辑器：拖一下，一秒出声</text>
+  <rect x="107" y="138" width="107" height="4" fill="#4C7A5A"/>
+
+  <text x="107" y="196" font-family="微软雅黑" font-size="15" font-weight="bold" fill="#4C7A5A">怎么做到的</text>
+
+  <rect x="107" y="228" width="330" height="104" fill="#E8EEEA"/>
+  <text x="133" y="266" font-family="微软雅黑" font-size="19" font-weight="bold" fill="#4C7A5A">① 切段</text>
+  <text x="133" y="302" font-family="微软雅黑" font-size="17" fill="#2E3238">大模型把全文切成段落</text>
+  <line x1="447" y1="280" x2="497" y2="280" stroke="#4C7A5A" stroke-width="2"/>
+  <line x1="490" y1="274" x2="497" y2="280" stroke="#4C7A5A" stroke-width="2"/>
+  <line x1="490" y1="286" x2="497" y2="280" stroke="#4C7A5A" stroke-width="2"/>
+
+  <rect x="507" y="228" width="330" height="104" fill="#E8EEEA"/>
+  <text x="533" y="266" font-family="微软雅黑" font-size="19" font-weight="bold" fill="#4C7A5A">② 打标签</text>
+  <text x="533" y="302" font-family="微软雅黑" font-size="17" fill="#2E3238">每段标注情绪、强度、角色</text>
+  <line x1="847" y1="280" x2="897" y2="280" stroke="#4C7A5A" stroke-width="2"/>
+  <line x1="890" y1="274" x2="897" y2="280" stroke="#4C7A5A" stroke-width="2"/>
+  <line x1="890" y1="286" x2="897" y2="280" stroke="#4C7A5A" stroke-width="2"/>
+
+  <rect x="907" y="228" width="266" height="104" fill="#E8EEEA"/>
+  <text x="933" y="266" font-family="微软雅黑" font-size="19" font-weight="bold" fill="#4C7A5A">③ 画曲线</text>
+  <text x="933" y="302" font-family="微软雅黑" font-size="17" fill="#2E3238">前端渲染成一条能拖的曲线</text>
+
+  <line x1="107" y1="364" x2="1173" y2="364" stroke="#C8D2CD" stroke-width="1"/>
+
+  <text x="107" y="400" font-family="微软雅黑" font-size="15" font-weight="bold" fill="#4C7A5A">真正的难点</text>
+
+  <rect x="107" y="430" width="497" height="170" fill="#EBE4E1"/>
+  <text x="155" y="468" font-family="微软雅黑" font-size="19" font-weight="bold" fill="#8C5A46">改完怎么办？</text>
+  <text x="155" y="506" font-family="微软雅黑" font-size="19" fill="#503C32">整篇重合成要等<tspan font-weight="bold" fill="#8C5A46">半分钟</tspan>，</text>
+  <text x="155" y="548" font-family="微软雅黑" font-size="19" fill="#503C32">拖一个点等一次，没法用</text>
+  <text x="540" y="552" font-family="Arial" font-size="40" font-weight="bold" text-anchor="end" fill="#8C5A46">30s</text>
+
+  <line x1="624" y1="515" x2="674" y2="515" stroke="#4C7A5A" stroke-width="2"/>
+  <line x1="667" y1="509" x2="674" y2="515" stroke="#4C7A5A" stroke-width="2"/>
+  <line x1="667" y1="521" x2="674" y2="515" stroke="#4C7A5A" stroke-width="2"/>
+
+  <rect x="693" y="430" width="480" height="170" fill="#E0EBE4"/>
+  <text x="741" y="468" font-family="微软雅黑" font-size="19" font-weight="bold" fill="#4C7A5A">解法：段落级缓存 + 增量重合成</text>
+  <text x="741" y="506" font-family="微软雅黑" font-size="19" fill="#2E3238">拖哪一段，只重算那一段</text>
+  <text x="741" y="548" font-family="微软雅黑" font-size="19" font-weight="bold" fill="#4C7A5A">一秒出声。</text>
+  <text x="1133" y="552" font-family="Arial" font-size="40" font-weight="bold" text-anchor="end" fill="#4C7A5A">1s</text>
 </svg>

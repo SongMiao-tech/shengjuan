@@ -1,27 +1,31 @@
 <svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="0" width="1280" height="720" fill="#FFFFFF"/>
-  <text x="80" y="96" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A8A8A">HIGHLIGHT 03</text>
-  <text x="1200" y="96" text-anchor="end" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A8A8A">06 / 08</text>
-  <rect x="80" y="132" width="56" height="6" fill="#000000"/>
-  <text x="80" y="240" font-family="微软雅黑, Arial, sans-serif" font-size="44" font-weight="bold" fill="#000000">工作台做的书，睡前故事页立刻能听</text>
-  <text x="80" y="296" font-family="微软雅黑, Arial, sans-serif" font-size="22" fill="#333333">进度跨设备同步 · 音频一键下载 MP3</text>
-  <rect x="80" y="352" width="328" height="216" fill="#F1F1F1"/>
-  <text x="112" y="408" font-family="微软雅黑, Arial, sans-serif" font-size="20" font-weight="bold" fill="#000000">格林童话 · 小红帽</text>
-  <text x="112" y="456" font-family="Arial, sans-serif" font-size="18" fill="#8A8A8A">⤓ 下载</text>
-  <text x="112" y="504" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#8A8A8A">点了才开始</text>
-  <rect x="432" y="392" width="248" height="176" fill="#F1F1F1"/>
-  <text x="464" y="440" font-family="微软雅黑, Arial, sans-serif" font-size="20" font-weight="bold" fill="#000000">伊索寓言</text>
-  <text x="464" y="488" font-family="Arial, sans-serif" font-size="18" fill="#333333">62%</text>
-  <text x="464" y="528" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#8A8A8A">按 Content-Length 走</text>
-  <rect x="704" y="336" width="176" height="232" fill="#F1F1F1"/>
-  <text x="736" y="392" font-family="微软雅黑, Arial, sans-serif" font-size="20" font-weight="bold" fill="#000000">西游记</text>
-  <text x="736" y="440" font-family="Arial, sans-serif" font-size="18" fill="#333333">✓ 已下载</text>
-  <text x="736" y="516" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#8A8A8A">两秒后回弹</text>
-  <text x="80" y="632" font-family="微软雅黑, Arial, sans-serif" font-size="20" fill="#8A8A8A">按钮状态机：⤓ → 百分比 → ✓</text>
-  <rect x="944" y="264" width="176" height="352" fill="none" stroke="#000000" stroke-width="2"/>
-  <text x="1032" y="300" text-anchor="middle" font-family="微软雅黑, Arial, sans-serif" font-size="18" fill="#000000">手机</text>
-  <rect x="944" y="552" width="176" height="64" fill="#E63946"/>
-  <text x="1032" y="590" text-anchor="middle" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#FFFFFF">safe-area</text>
-  <text x="944" y="656" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#8A8A8A">播放栏被手势条切掉一半</text>
-  <text x="944" y="684" font-family="微软雅黑, Arial, sans-serif" font-size="16" fill="#8A8A8A">真机截图才发现的</text>
+  <rect x="0" y="0" width="1280" height="720" fill="#F4F6F5"/>
+  <text x="1173" y="76" font-family="Arial" font-size="15" letter-spacing="2" text-anchor="end" fill="#78827D">06 / 08</text>
+  <text x="107" y="112" font-family="微软雅黑" font-size="37" font-weight="bold" fill="#2E3238">亮点三 · 跨页书架与移动端</text>
+  <rect x="107" y="138" width="107" height="4" fill="#4C7A5A"/>
+
+  <text x="107" y="196" font-family="微软雅黑" font-size="15" font-weight="bold" fill="#4C7A5A">跨页书架</text>
+
+  <text x="107" y="248" font-family="微软雅黑" font-size="19" fill="#2E3238">工作台做的书，睡前故事页<tspan font-weight="bold" fill="#4C7A5A">立刻能听</tspan></text>
+  <line x1="107" y1="280" x2="600" y2="280" stroke="#D2DAD5" stroke-width="1"/>
+  <text x="107" y="330" font-family="微软雅黑" font-size="19" fill="#2E3238">收听进度<tspan font-weight="bold" fill="#4C7A5A">跨设备同步</tspan></text>
+  <line x1="107" y1="362" x2="600" y2="362" stroke="#D2DAD5" stroke-width="1"/>
+  <text x="107" y="412" font-family="微软雅黑" font-size="19" fill="#2E3238">音频一键下载，按钮走状态机：</text>
+  <text x="107" y="452" font-family="微软雅黑" font-size="19" font-weight="bold" fill="#4C7A5A">下载 → 百分比 → 完成</text>
+
+  <text x="693" y="196" font-family="微软雅黑" font-size="15" font-weight="bold" fill="#4C7A5A">移动端踩的坑</text>
+
+  <rect x="693" y="228" width="480" height="150" fill="#EBE4E1"/>
+  <text x="741" y="268" font-family="微软雅黑" font-size="17" font-weight="bold" fill="#8C5A46">问题</text>
+  <text x="741" y="306" font-family="微软雅黑" font-size="19" fill="#503C32">底部播放栏被全面屏手势条</text>
+  <text x="741" y="344" font-family="微软雅黑" font-size="19" font-weight="bold" fill="#8C5A46">切掉一半</text>
+
+  <line x1="933" y1="396" x2="933" y2="436" stroke="#4C7A5A" stroke-width="2"/>
+  <line x1="927" y1="429" x2="933" y2="436" stroke="#4C7A5A" stroke-width="2"/>
+  <line x1="939" y1="429" x2="933" y2="436" stroke="#4C7A5A" stroke-width="2"/>
+
+  <rect x="693" y="452" width="480" height="150" fill="#E0EBE4"/>
+  <text x="741" y="492" font-family="微软雅黑" font-size="17" font-weight="bold" fill="#4C7A5A">解法</text>
+  <text x="741" y="530" font-family="微软雅黑" font-size="19" fill="#2E3238">靠 <tspan font-weight="bold" fill="#4C7A5A">safe-area 适配</tspan> 解决</text>
+  <text x="741" y="568" font-family="微软雅黑" font-size="19" fill="#4C7A5A">真机截图才发现的</text>
 </svg>
